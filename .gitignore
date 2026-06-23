@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-ssr
+*.local
+
+# Secrets / local config — NEVER commit .env (real keys live here only).
+# .env.example is the ONLY env file allowed in git, and it must hold
+# placeholders only — never real values.
+.env
+.env.*
+!.env.example
+.DS_Store
+.vercel
+*.log
