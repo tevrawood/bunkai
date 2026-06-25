@@ -12,8 +12,15 @@ function SignInScreen() {
   return (
     <div className="center-screen">
       <div className="brand" style={{ marginBottom: 8 }}>
-        <div style={{ fontWeight: 700, fontSize: 26 }}>Shorinkan Bunkai</div>
-        <div style={{ color: 'var(--accent)', fontSize: 13, letterSpacing: 1, textTransform: 'uppercase' }}>
+        <img
+          src="/crest.png"
+          alt="Shorinkan crest"
+          style={{ width: 132, height: 132, margin: '0 auto 18px', filter: 'drop-shadow(0 10px 30px rgba(0,0,0,.6))' }}
+        />
+        <div style={{ fontFamily: 'var(--serif)', fontWeight: 700, fontSize: 28, color: 'var(--text)' }}>
+          Shorinkan Bunkai
+        </div>
+        <div style={{ color: 'var(--gold)', fontSize: 11, fontWeight: 700, letterSpacing: 4, textTransform: 'uppercase', marginTop: 12 }}>
           Kata to Application
         </div>
       </div>
