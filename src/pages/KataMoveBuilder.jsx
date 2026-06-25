@@ -63,9 +63,13 @@ export default function KataMoveBuilder() {
   async function saveMove() {
     if (!transcript.trim() && !audioBlob) return
     setSaving(true)
-    try {
-      let audioPath = null
-      if (audioBlob) {
+
+    // Audio is optional metadata — if the upload fails (e.g. the storage bucket
+    // isn't set up), keep going and save the move text so nothing is lost.
+    let audioPath = null
+    let audioWarn = null
+    if (audioBlob) {
+      try {
         const ext = extFor(audioBlob.type)
         const path = `${userId}/kata-move/${kataId}-${moveNumber}-${Date.now()}.${ext}`
         const { data: up, error: upErr } = await supabase.storage
@@ -73,21 +77,41 @@ export default function KataMoveBuilder() {
           .upload(path, audioBlob, { contentType: audioBlob.type || 'audio/webm' })
         if (upErr) throw upErr
         audioPath = up.path
+      } catch (e) {
+        audioWarn = e?.message || String(e)
       }
-      const { error } = await supabase.from('kata_moves').insert({
-        user_id: userId,
-        kata_id: kataId,
-        move_number: moveNumber,
-        notes: transcript.trim() || null,
-        audio_url: audioPath,
-      })
-      if (error) throw error
-    } catch (e) {
+    }
+
+    // Don't save a totally empty move (audio failed AND no text).
+    if (!transcript.trim() && !audioPath) {
       setSaving(false)
-      alert('Could not save move: ' + (e.message || e))
+      alert(
+        'Audio upload failed and there is no text to save:\n' +
+          audioWarn +
+          '\n\nCreate the "bunkai-audio" storage bucket in Supabase, or type the move text in.'
+      )
       return
     }
+
+    const { error } = await supabase.from('kata_moves').insert({
+      user_id: userId,
+      kata_id: kataId,
+      move_number: moveNumber,
+      notes: transcript.trim() || null,
+      audio_url: audioPath,
+    })
     setSaving(false)
+    if (error) {
+      alert('Could not save move: ' + error.message)
+      return
+    }
+    if (audioWarn) {
+      alert(
+        'Saved the move text, but the audio could not attach:\n' +
+          audioWarn +
+          '\n\nCreate the "bunkai-audio" bucket in Supabase to store audio with future moves.'
+      )
+    }
     reset()
     setMoveNumber((n) => n + 1)
     load()
