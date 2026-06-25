@@ -27,7 +27,7 @@ function initialState() {
     move_numbers: [],
     attack: '',
     attack_side: '',
-    stance: NONE,
+    stance: 'Shizentai', // natural stance — most applications start here
     finish: NONE,
     kiai: false,
     technique_notes: '',

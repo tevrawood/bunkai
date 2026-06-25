@@ -79,6 +79,7 @@ export const DEFENSE = [
 
 export const STANCES = [
   opt(NONE, '—'),
+  opt('Shizentai', 'Shizentai (Natural Stance)'),
   opt('Zenkutsu', 'Zenkutsu (Front Stance)'),
   opt('Neko', 'Neko (Cat Stance)'),
   opt('Naihanchi', 'Naihanchi (Naihanchi Stance)'),
