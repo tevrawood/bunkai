@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Select, SegControl } from './Field.jsx'
 import {
   MOVE_SIDES, DEFENSE, LEVELS, HIKITE_ACTIONS, TUITE, KYUSHO, NONE, labelFor,
@@ -9,6 +9,12 @@ import {
 // `onChange(field, value)` patches a single field on the parent form state.
 export default function MoveBlock({ index, prefix, data, onChange, defaultOpen }) {
   const [open, setOpen] = useState(defaultOpen ?? false)
+
+  // Pop open when voice-parsing fills this move (defaultOpen flips true). We
+  // never auto-close, so a manual toggle afterward still wins.
+  useEffect(() => {
+    if (defaultOpen) setOpen(true)
+  }, [defaultOpen])
 
   const f = (name) => `${prefix}_${name}`
   const technique = data[f('technique')]

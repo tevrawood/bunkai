@@ -22,6 +22,29 @@ export async function transcribeAudio(blob) {
   return (data.text ?? '').trim()
 }
 
+// Send a transcript to the Claude parser and get back structured form fields
+// (short lexicon codes, or null per field). Best-effort: callers should keep the
+// raw transcript regardless, since this only runs on the deployed /api route.
+export async function parseBunkai(transcript) {
+  const res = await fetch('/api/parse', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ transcript }),
+  })
+  if (!res.ok) {
+    const raw = await res.text()
+    let msg = raw
+    try {
+      msg = JSON.parse(raw)?.error?.message || raw
+    } catch {
+      /* keep raw text */
+    }
+    throw new Error(`Parsing failed (${res.status})${msg ? ': ' + msg : ''}`)
+  }
+  const data = await res.json()
+  return data.fields ?? null
+}
+
 // Map a recording's mime type to a file extension for storage paths.
 export function extFor(type = '') {
   const t = type.split(';')[0].trim()

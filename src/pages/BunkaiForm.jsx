@@ -5,12 +5,33 @@ import { useSupabase } from '../lib/useSupabase.js'
 import { Select, SegControl, Textarea, ChipMulti } from '../components/Field.jsx'
 import MoveBlock from '../components/MoveBlock.jsx'
 import VoiceRecorder from '../components/VoiceRecorder.jsx'
-import { ATTACKS, SIDES, STANCES, FINISH, NONE } from '../lib/lexicons.js'
+import { parseBunkai } from '../lib/voice.js'
+import {
+  ATTACKS, SIDES, STANCES, FINISH, NONE,
+  MOVE_SIDES, DEFENSE, LEVELS, HIKITE_ACTIONS, TUITE, KYUSHO,
+} from '../lib/lexicons.js'
 import { CURRICULUM } from '../lib/curriculum.js'
 
 // Dropdown fields default to the NONE sentinel; we strip those back to null on
 // save so partial entries stay clean in the database.
 const MOVE_FIELDS = ['side', 'technique', 'level', 'hikite_action', 'hikite_target', 'tuite', 'kyusho']
+
+// Valid-value sets per field, used to vet what the voice parser returns before
+// it touches form state — a value the dropdown can't show is dropped silently.
+const setOf = (lex) => new Set(lex.map((o) => o.value))
+const VALID = {
+  attack: setOf(ATTACKS),
+  attack_side: setOf(SIDES),
+  stance: setOf(STANCES),
+  finish: setOf(FINISH),
+  side: setOf(MOVE_SIDES),
+  technique: setOf(DEFENSE),
+  level: setOf(LEVELS),
+  hikite_action: setOf(HIKITE_ACTIONS),
+  hikite_target: setOf(KYUSHO),
+  tuite: setOf(TUITE),
+  kyusho: setOf(KYUSHO),
+}
 
 // Curriculum position for each kata name, so the kata selector lists them in the
 // same order as the home grid rather than alphabetically.
@@ -60,8 +81,18 @@ export default function BunkaiForm() {
   const [saving, setSaving] = useState(false)
   const [kataList, setKataList] = useState([])
   const [kataMoves, setKataMoves] = useState([])
+  const [parsing, setParsing] = useState(false)
+  const [parseError, setParseError] = useState(null)
 
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+
+  // A move's block is auto-opened once it has any data (so voice-filled moves
+  // reveal themselves). Move 1 is always open.
+  const moveHasData = (n) =>
+    MOVE_FIELDS.some((f) => {
+      const v = form[`m${n}_${f}`]
+      return v && v !== NONE
+    })
 
   // Load the kata list once for the selector (standalone mode only).
   useEffect(() => {
@@ -104,17 +135,51 @@ export default function BunkaiForm() {
   // Changing the kata clears any move selection that belonged to the old one.
   const pickKata = (v) => setForm((prev) => ({ ...prev, kata_id: v, move_numbers: [] }))
 
-  // Voice capture: until Claude field-parsing lands, the transcript just lands in
-  // Notes (appended, so repeat takes add rather than overwrite). The audio blob is
-  // not persisted yet — bunkai has no audio_url column.
-  function onVoice({ transcript }) {
+  // Apply the parser's structured fields onto form state, vetting every value
+  // against its lexicon so a stray/unknown code is dropped rather than shown.
+  function applyParsed(f) {
+    setForm((prev) => {
+      const next = { ...prev }
+      const setIf = (field, value, key) => {
+        if (value != null && VALID[key].has(value)) next[field] = value
+      }
+      setIf('attack', f.attack, 'attack')
+      setIf('attack_side', f.attack_side, 'attack_side')
+      setIf('stance', f.stance, 'stance')
+      setIf('finish', f.finish, 'finish')
+      if (typeof f.kiai === 'boolean') next.kiai = f.kiai
+      const moves = Array.isArray(f.moves) ? f.moves.slice(0, 3) : []
+      moves.forEach((m, i) => {
+        if (!m) return
+        const n = i + 1
+        for (const field of MOVE_FIELDS) setIf(`m${n}_${field}`, m[field], field)
+      })
+      return next
+    })
+  }
+
+  // Voice capture: keep the raw transcript in Notes (lossless), then ask Claude
+  // to parse it into the fields. Parsing is best-effort — if it fails, the
+  // transcript is already saved and the user fills the fields by hand. The audio
+  // blob is not persisted yet — bunkai has no audio_url column.
+  async function onVoice({ transcript }) {
     if (!transcript) return
+    setParseError(null)
     setForm((prev) => ({
       ...prev,
       technique_notes: prev.technique_notes
         ? `${prev.technique_notes} ${transcript}`
         : transcript,
     }))
+    setParsing(true)
+    try {
+      const fields = await parseBunkai(transcript)
+      if (fields) applyParsed(fields)
+    } catch (e) {
+      setParseError(e.message || 'Could not auto-fill the fields')
+    } finally {
+      setParsing(false)
+    }
   }
 
   const moveOptions = kataMoves.map((m) => ({
@@ -163,14 +228,24 @@ export default function BunkaiForm() {
       <h1 className="page-title">New Bunkai</h1>
       <p className="page-sub">Only the attack type is required — log what you have.</p>
 
-      {/* VOICE — transcript drops into Notes for now; field-parsing comes later */}
+      {/* VOICE — transcript lands in Notes, then Claude fills the fields */}
       <section className="section">
         <div className="section-title">Record</div>
-        <VoiceRecorder onResult={onVoice} disabled={saving} label="Tap to record this bunkai" />
-        <p className="hint" style={{ marginTop: 8 }}>
-          Speak the application — the transcript lands in Notes below. Auto-parsing
-          into the fields is coming.
-        </p>
+        <VoiceRecorder onResult={onVoice} disabled={saving || parsing} label="Tap to record this bunkai" />
+        {parsing ? (
+          <p className="hint" style={{ marginTop: 8 }}>
+            <span className="spinner-inline" /> Reading your description and filling the fields…
+          </p>
+        ) : parseError ? (
+          <p className="hint" style={{ marginTop: 8, color: 'var(--crimson-text)' }}>
+            {parseError} — your words are saved in Notes; fill the fields by hand.
+          </p>
+        ) : (
+          <p className="hint" style={{ marginTop: 8 }}>
+            Speak the application — Claude fills the fields below and keeps your words in Notes.
+            Review everything before saving.
+          </p>
+        )}
       </section>
 
       {/* KATA + MOVES (standalone only — under a segment these are implied) */}
@@ -227,8 +302,8 @@ export default function BunkaiForm() {
       <section className="section">
         <div className="section-title">Moves</div>
         <MoveBlock index={1} prefix="m1" data={form} onChange={set} defaultOpen />
-        <MoveBlock index={2} prefix="m2" data={form} onChange={set} />
-        <MoveBlock index={3} prefix="m3" data={form} onChange={set} />
+        <MoveBlock index={2} prefix="m2" data={form} onChange={set} defaultOpen={moveHasData(2)} />
+        <MoveBlock index={3} prefix="m3" data={form} onChange={set} defaultOpen={moveHasData(3)} />
       </section>
 
       {/* FINISH */}
