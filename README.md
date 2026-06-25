@@ -70,6 +70,11 @@ create table if not exists bunkai (
   user_id text not null,
   segment_id uuid references segments(id) on delete cascade,
 
+  -- Standalone path: a bunkai can attach straight to a kata (and the specific
+  -- kata moves it comes from) instead of a segment — or to nothing at all.
+  kata_id uuid references kata(id) on delete set null,
+  move_numbers int[],
+
   -- ATTACK
   attack text,
   attack_side text,
@@ -118,6 +123,7 @@ create table if not exists bunkai (
 
 create index if not exists segments_user_kata_idx on segments (user_id, kata_id);
 create index if not exists bunkai_user_segment_idx on bunkai (user_id, segment_id);
+create index if not exists bunkai_user_kata_idx on bunkai (user_id, kata_id);
 
 -- ───────────────────────── SEED KATA ─────────────────────────
 insert into kata (name, lineage) values
@@ -139,6 +145,11 @@ insert into kata (name, lineage) values
 on conflict do nothing;
 ```
 
+> **Already have an older database?** Run
+> [`migration-bunkai-kata-link.sql`](migration-bunkai-kata-link.sql) in the SQL
+> editor to add the `kata_id` + `move_numbers` columns the standalone Bunkai tab
+> needs. (A fresh run of the schema above already includes them.)
+
 ### Row-level security (RLS)
 
 This app uses Clerk for auth and Supabase's **native third-party auth**
@@ -150,6 +161,15 @@ Clerk user id is available inside policies as `auth.jwt()->>'sub'`.
 alter table kata     enable row level security;
 alter table segments enable row level security;
 alter table bunkai   enable row level security;
+
+-- Table privileges. RLS decides WHICH rows a role sees; these GRANTs decide
+-- whether the role can touch the table at all. Supabase usually applies these
+-- by default, but grant them explicitly so a fresh project never 401s with
+-- "permission denied for table".
+grant usage on schema public to anon, authenticated;
+grant select on kata to anon, authenticated;
+grant select, insert, update, delete on segments to authenticated;
+grant select, insert, update, delete on bunkai to authenticated;
 
 -- KATA: public read, no writes from clients
 create policy "kata public read"

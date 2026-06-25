@@ -46,7 +46,7 @@ export default function BunkaiDetail() {
     ;(async () => {
       const { data } = await supabase
         .from('bunkai')
-        .select('*, segment:segment_id (id, name, kata:kata_id (name))')
+        .select('*, segment:segment_id (id, name, kata:kata_id (name)), kata:kata_id (name)')
         .eq('id', bunkaiId)
         .single()
       if (!active) return
@@ -72,15 +72,29 @@ export default function BunkaiDetail() {
   if (loading) return <div className="spinner" />
   if (!b) return <div className="empty">Entry not found.</div>
 
+  const kataName = b.segment?.kata?.name || b.kata?.name
+  const subtitle = kataName
+    ? `${kataName}${b.segment?.name ? ` · ${b.segment.name}` : ''}`
+    : 'Standalone technique'
+
   return (
     <>
       <h1 className="page-title">
         {labelFor(b.attack) ? b.attack : 'Bunkai'}
         {b.kiai && <span className="kiai-badge" style={{ marginLeft: 10 }}>Kiai</span>}
       </h1>
-      <p className="page-sub">
-        {b.segment?.kata?.name} · {b.segment?.name}
-      </p>
+      <p className="page-sub">{subtitle}</p>
+
+      {b.move_numbers?.length > 0 && (
+        <section className="section">
+          <div className="section-title">Kata Moves</div>
+          <div className="bk-kyusho">
+            {b.move_numbers.map((n) => (
+              <span key={n} className="chip">#{n}</span>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="section">
         <div className="section-title">Attack</div>

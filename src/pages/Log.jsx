@@ -21,7 +21,7 @@ export default function Log() {
     ;(async () => {
       const { data } = await supabase
         .from('bunkai')
-        .select('*, segment:segment_id (name, move_range, kata:kata_id (name))')
+        .select('*, segment:segment_id (name, move_range, kata:kata_id (name)), kata:kata_id (name)')
         .order('created_at', { ascending: false })
       if (!active) return
       setRows(data ?? [])
@@ -32,22 +32,26 @@ export default function Log() {
     }
   }, [supabase])
 
+  // A bunkai's kata comes from its segment, or — for standalone entries — from
+  // the kata picked directly on the entry.
+  const kataOf = (r) => r.segment?.kata?.name || r.kata?.name || null
+
   const kataNames = useMemo(() => {
     const set = new Set()
-    for (const r of rows) if (r.segment?.kata?.name) set.add(r.segment.kata.name)
+    for (const r of rows) if (kataOf(r)) set.add(kataOf(r))
     return [...set].sort()
   }, [rows])
 
   const filtered = useMemo(() => {
     if (kataFilter === 'all') return rows
-    return rows.filter((r) => r.segment?.kata?.name === kataFilter)
+    return rows.filter((r) => kataOf(r) === kataFilter)
   }, [rows, kataFilter])
 
   function exportCsv() {
     // Flatten the joined relations into the columns the CSV builder expects.
     const flat = filtered.map((r) => ({
       ...r,
-      kata_name: r.segment?.kata?.name ?? '',
+      kata_name: kataOf(r) ?? '',
       segment_name: r.segment?.name ?? '',
       move_range: r.segment?.move_range ?? '',
     }))
@@ -104,7 +108,9 @@ export default function Log() {
                 {b.kiai && <span className="kiai-badge">Kiai</span>}
               </div>
               <div className="snote" style={{ marginTop: 4 }}>
-                {b.segment?.kata?.name} · {b.segment?.name}
+                {kataOf(b)
+                  ? `${kataOf(b)}${b.segment?.name ? ` · ${b.segment.name}` : ''}`
+                  : 'Standalone technique'}
               </div>
               <div className="bk-moves">{moveSummary(b)}</div>
             </button>

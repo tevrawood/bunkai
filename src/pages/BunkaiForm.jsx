@@ -1,17 +1,29 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { useSupabase } from '../lib/useSupabase.js'
-import { Select, SegControl, Textarea } from '../components/Field.jsx'
+import { Select, SegControl, Textarea, ChipMulti } from '../components/Field.jsx'
 import MoveBlock from '../components/MoveBlock.jsx'
 import { ATTACKS, SIDES, STANCES, FINISH, NONE } from '../lib/lexicons.js'
+import { CURRICULUM } from '../lib/curriculum.js'
 
 // Dropdown fields default to the NONE sentinel; we strip those back to null on
 // save so partial entries stay clean in the database.
 const MOVE_FIELDS = ['side', 'technique', 'level', 'hikite_action', 'hikite_target', 'tuite', 'kyusho']
 
+// Curriculum position for each kata name, so the kata selector lists them in the
+// same order as the home grid rather than alphabetically.
+const KATA_ORDER = (() => {
+  const order = {}
+  let i = 0
+  for (const grp of CURRICULUM) for (const m of grp.members) order[m.db] = i++
+  return order
+})()
+
 function initialState() {
   const s = {
+    kata_id: '',
+    move_numbers: [],
     attack: '',
     attack_side: '',
     stance: NONE,
@@ -37,10 +49,65 @@ export default function BunkaiForm() {
   const supabase = useSupabase()
   const { userId } = useAuth()
 
+  // Two entry points share this form: under a segment (segmentId present) or
+  // free-standing from the Bunkai tab (standalone), where the kata + moves are
+  // optional selectors instead of being implied by the segment.
+  const standalone = !segmentId
+  const backTo = segmentId ? `/segment/${segmentId}` : '/bunkai'
+
   const [form, setForm] = useState(initialState)
   const [saving, setSaving] = useState(false)
+  const [kataList, setKataList] = useState([])
+  const [kataMoves, setKataMoves] = useState([])
 
   const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }))
+
+  // Load the kata list once for the selector (standalone mode only).
+  useEffect(() => {
+    if (!standalone) return
+    let active = true
+    ;(async () => {
+      const { data } = await supabase.from('kata').select('id, name')
+      if (!active) return
+      const sorted = (data ?? [])
+        .slice()
+        .sort((a, b) => (KATA_ORDER[a.name] ?? 99) - (KATA_ORDER[b.name] ?? 99))
+      setKataList(sorted)
+    })()
+    return () => {
+      active = false
+    }
+  }, [standalone, supabase])
+
+  // When a kata is chosen, pull its recorded moves to drive the multi-select.
+  useEffect(() => {
+    if (!standalone || !form.kata_id) {
+      setKataMoves([])
+      return
+    }
+    let active = true
+    ;(async () => {
+      const { data } = await supabase
+        .from('kata_moves')
+        .select('move_number, notes')
+        .eq('kata_id', form.kata_id)
+        .order('move_number', { ascending: true })
+      if (!active) return
+      setKataMoves(data ?? [])
+    })()
+    return () => {
+      active = false
+    }
+  }, [standalone, form.kata_id, supabase])
+
+  // Changing the kata clears any move selection that belonged to the old one.
+  const pickKata = (v) => setForm((prev) => ({ ...prev, kata_id: v, move_numbers: [] }))
+
+  const moveOptions = kataMoves.map((m) => ({
+    value: m.move_number,
+    label: `#${m.move_number}`,
+    title: m.notes || '',
+  }))
 
   async function save(e) {
     e.preventDefault()
@@ -50,7 +117,12 @@ export default function BunkaiForm() {
     }
     setSaving(true)
 
-    const row = { user_id: userId, segment_id: segmentId, kiai: form.kiai }
+    const row = { user_id: userId, kiai: form.kiai }
+    if (segmentId) row.segment_id = segmentId
+    if (standalone) {
+      row.kata_id = form.kata_id || null
+      row.move_numbers = form.move_numbers.length ? form.move_numbers : null
+    }
     row.attack = clean(form.attack)
     row.attack_side = clean(form.attack_side)
     row.stance = clean(form.stance)
@@ -69,13 +141,40 @@ export default function BunkaiForm() {
       alert('Could not save bunkai: ' + error.message)
       return
     }
-    navigate(`/segment/${segmentId}`)
+    navigate(backTo)
   }
 
   return (
     <form onSubmit={save}>
       <h1 className="page-title">New Bunkai</h1>
       <p className="page-sub">Only the attack type is required — log what you have.</p>
+
+      {/* KATA + MOVES (standalone only — under a segment these are implied) */}
+      {standalone && (
+        <section className="section">
+          <div className="section-title">Kata <span className="opt-tag">optional</span></div>
+          <Select
+            label="Kata"
+            hint="Leave on “No kata” for free-standing technique that isn't tied to a form."
+            options={[
+              { value: '', label: '— No kata —' },
+              ...kataList.map((k) => ({ value: k.id, label: k.name })),
+            ]}
+            value={form.kata_id}
+            onChange={pickKata}
+          />
+          {form.kata_id && (
+            <ChipMulti
+              label="Which moves"
+              hint={moveOptions.length ? 'Tap every move this application comes from.' : null}
+              empty="No moves recorded for this kata yet — build them from the kata's page first."
+              options={moveOptions}
+              value={form.move_numbers}
+              onChange={(v) => set('move_numbers', v)}
+            />
+          )}
+        </section>
+      )}
 
       {/* ATTACK */}
       <section className="section">
@@ -151,7 +250,7 @@ export default function BunkaiForm() {
         type="button"
         className="btn btn-ghost btn-block"
         style={{ marginTop: 10 }}
-        onClick={() => navigate(`/segment/${segmentId}`)}
+        onClick={() => navigate(backTo)}
       >
         Cancel
       </button>

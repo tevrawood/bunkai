@@ -6,7 +6,7 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
 
   // Top-level routes don't get a back button.
-  const isRoot = location.pathname === '/' || location.pathname === '/log'
+  const isRoot = ['/', '/bunkai', '/log'].includes(location.pathname)
 
   return (
     <div className="app">
@@ -28,6 +28,10 @@ export default function Layout({ children }) {
       <main className="content">{children}</main>
 
       <nav className="bottomnav">
+        <NavLink to="/bunkai">
+          <span className="ico"><BunkaiIcon /></span>
+          Bunkai
+        </NavLink>
         <NavLink to="/" end>
           <span className="ico"><KataIcon /></span>
           Kata
@@ -38,6 +42,17 @@ export default function Layout({ children }) {
         </NavLink>
       </nav>
     </div>
+  )
+}
+
+// Two crossed arms — the moment of application (bunkai).
+function BunkaiIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5l16 14" />
+      <path d="M20 5L4 19" />
+      <circle cx="12" cy="12" r="2.4" />
+    </svg>
   )
 }
 

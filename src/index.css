@@ -360,6 +360,32 @@ button.kata-card:active, button.kata-row:active { transform: scale(0.99); }
 }
 .seg-control button.on { background: var(--crimson); border-color: var(--crimson); color: #fff; font-weight: 700; }
 
+/* Multi-select toggle chips (e.g. which kata moves a bunkai covers) */
+.chip-multi { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip-multi button {
+  min-width: 48px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-weight: 700;
+}
+.chip-multi button.on { background: var(--crimson); border-color: var(--crimson); color: #fff; }
+
+/* "optional" tag beside a section title */
+.opt-tag {
+  margin-left: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
 /* Form sections — crimson tracked label, content sits on the navy field */
 .section {
   margin-bottom: 22px;
