@@ -192,8 +192,7 @@ button.card:hover { border-color: rgba(214, 146, 20, 0.4); }
 .series-head .s-kanji { font-family: var(--serif); font-size: 14px; color: var(--gold); }
 .series-head .s-sub { margin-left: auto; font-weight: 600; font-size: 9px; letter-spacing: 1.5px; color: var(--dim); }
 
-.series-rail { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
-.series-rail::-webkit-scrollbar { display: none; }
+.series-rail { display: flex; flex-wrap: wrap; gap: 10px; padding-bottom: 4px; }
 
 /* Stat pairs (SEG / BK) shared by cards and solo rows */
 .kc-stat { display: inline-flex; align-items: baseline; gap: 3px; }

@@ -6,7 +6,7 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
 
   // Top-level routes don't get a back button.
-  const isRoot = ['/', '/bunkai', '/notes'].includes(location.pathname)
+  const isRoot = ['/', '/bunkai', '/kata', '/notes'].includes(location.pathname)
 
   return (
     <div className="app">
@@ -32,7 +32,7 @@ export default function Layout({ children }) {
           <span className="ico"><BunkaiIcon /></span>
           Bunkai
         </NavLink>
-        <NavLink to="/" end>
+        <NavLink to="/kata">
           <span className="ico"><KataIcon /></span>
           Kata
         </NavLink>

@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { SignedIn, SignedOut, SignIn } from '@clerk/clerk-react'
 import Layout from './components/Layout.jsx'
 import KataList from './pages/KataList.jsx'
@@ -40,7 +40,8 @@ export default function App() {
       <SignedIn>
         <Layout>
           <Routes>
-            <Route path="/" element={<KataList />} />
+            <Route path="/" element={<Navigate to="/bunkai" replace />} />
+            <Route path="/kata" element={<KataList />} />
             <Route path="/kata/:kataId" element={<Segments />} />
             <Route path="/kata/:kataId/build" element={<KataMoveBuilder />} />
             <Route path="/segment/:segmentId" element={<BunkaiList />} />
