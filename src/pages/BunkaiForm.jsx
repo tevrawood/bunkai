@@ -4,6 +4,7 @@ import { useAuth } from '@clerk/clerk-react'
 import { useSupabase } from '../lib/useSupabase.js'
 import { Select, SegControl, Textarea, ChipMulti } from '../components/Field.jsx'
 import MoveBlock from '../components/MoveBlock.jsx'
+import VoiceRecorder from '../components/VoiceRecorder.jsx'
 import { ATTACKS, SIDES, STANCES, FINISH, NONE } from '../lib/lexicons.js'
 import { CURRICULUM } from '../lib/curriculum.js'
 
@@ -103,6 +104,19 @@ export default function BunkaiForm() {
   // Changing the kata clears any move selection that belonged to the old one.
   const pickKata = (v) => setForm((prev) => ({ ...prev, kata_id: v, move_numbers: [] }))
 
+  // Voice capture: until Claude field-parsing lands, the transcript just lands in
+  // Notes (appended, so repeat takes add rather than overwrite). The audio blob is
+  // not persisted yet — bunkai has no audio_url column.
+  function onVoice({ transcript }) {
+    if (!transcript) return
+    setForm((prev) => ({
+      ...prev,
+      technique_notes: prev.technique_notes
+        ? `${prev.technique_notes} ${transcript}`
+        : transcript,
+    }))
+  }
+
   const moveOptions = kataMoves.map((m) => ({
     value: m.move_number,
     label: `#${m.move_number}`,
@@ -148,6 +162,16 @@ export default function BunkaiForm() {
     <form onSubmit={save}>
       <h1 className="page-title">New Bunkai</h1>
       <p className="page-sub">Only the attack type is required — log what you have.</p>
+
+      {/* VOICE — transcript drops into Notes for now; field-parsing comes later */}
+      <section className="section">
+        <div className="section-title">Record</div>
+        <VoiceRecorder onResult={onVoice} disabled={saving} label="Tap to record this bunkai" />
+        <p className="hint" style={{ marginTop: 8 }}>
+          Speak the application — the transcript lands in Notes below. Auto-parsing
+          into the fields is coming.
+        </p>
+      </section>
 
       {/* KATA + MOVES (standalone only — under a segment these are implied) */}
       {standalone && (

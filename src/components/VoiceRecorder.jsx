@@ -27,7 +27,7 @@ function pickMime() {
 // Records up to 60s of mic audio, sends it to Whisper, and hands the transcript
 // + raw blob back via onResult({ transcript, audioBlob }). On a denied or
 // unsupported mic it surfaces an error so the parent's text box can be used.
-export default function VoiceRecorder({ onResult, disabled }) {
+export default function VoiceRecorder({ onResult, disabled, label = 'Tap to record this move' }) {
   const [status, setStatus] = useState('idle') // idle | recording | transcribing | error
   const [elapsed, setElapsed] = useState(0)
   const [err, setErr] = useState(null)
@@ -145,7 +145,7 @@ export default function VoiceRecorder({ onResult, disabled }) {
       ) : (
         <button type="button" className="rec-btn" onClick={start} disabled={disabled}>
           <span className="rec-mic">🎙</span>
-          <span className="rec-label">Tap to record this move</span>
+          <span className="rec-label">{label}</span>
         </button>
       )}
       {err && <div className="rec-err">{err}</div>}
