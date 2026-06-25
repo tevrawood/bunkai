@@ -165,13 +165,7 @@ input, select, textarea, button {
 .bottomnav .ico { line-height: 0; }
 .bottomnav .ico svg { width: 22px; height: 22px; display: block; }
 
-/* ---------- Cards & grid ---------- */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
+/* ---------- Cards ---------- */
 .card {
   background: var(--surface);
   border: 1px solid var(--line-gold);
@@ -187,16 +181,69 @@ button.card { cursor: pointer; transition: transform 0.05s ease, border-color 0.
 button.card:active { transform: scale(0.985); }
 button.card:hover { border-color: rgba(214, 146, 20, 0.4); }
 
-.kata-tile {
-  min-height: 96px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  border-top: 2px solid rgba(214, 146, 20, 0.5);
+/* ---------- Grouped kata curriculum ---------- */
+.kata-series { margin-top: 22px; }
+.kata-series:first-of-type { margin-top: 6px; }
+
+.series-head { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; padding-left: 2px; }
+.series-head .s-rank { font-weight: 800; font-size: 11px; letter-spacing: 1px; color: var(--crimson); }
+.series-head .s-bar { width: 3px; height: 15px; border-radius: 2px; background: var(--crimson); }
+.series-head .s-name { font-weight: 700; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: var(--text); }
+.series-head .s-kanji { font-family: var(--serif); font-size: 14px; color: var(--gold); }
+.series-head .s-sub { margin-left: auto; font-weight: 600; font-size: 9px; letter-spacing: 1.5px; color: var(--dim); }
+
+.series-rail { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.series-rail::-webkit-scrollbar { display: none; }
+
+/* Stat pairs (SEG / BK) shared by cards and solo rows */
+.kc-stat { display: inline-flex; align-items: baseline; gap: 3px; }
+.kc-stat b { font-style: normal; font-weight: 800; font-size: 15px; }
+.kc-stat i { font-style: normal; font-weight: 600; font-size: 8px; letter-spacing: 1px; color: var(--muted); }
+.kc-stat.seg b { color: var(--gold); }
+.kc-stat.bk b { color: var(--crimson-text); }
+
+/* Card (kata within a multi-kata series rail) */
+.kata-card {
+  flex: none;
+  width: 148px;
+  text-align: left;
+  background: #11152e;
+  border: 1px solid rgba(214, 146, 20, 0.22);
+  border-top: 2px solid var(--gold);
+  border-radius: 9px;
+  padding: 13px 13px 12px;
+  color: var(--text);
 }
-.kata-tile .kname { font-family: var(--serif); font-weight: 700; font-size: 17px; color: var(--text); }
-.kata-tile .klin { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 3px; }
-.kata-tile .kcount { font-size: 12px; font-weight: 600; color: var(--gold); }
+.kata-card .kc-title { font-family: var(--serif); font-weight: 700; font-size: 17px; color: var(--text); }
+.kata-card .kc-sup { font-weight: 700; font-size: 8px; letter-spacing: 1.5px; color: #7d8298; margin-top: 3px; min-height: 10px; }
+.kata-card .kc-stats { display: flex; gap: 14px; margin-top: 13px; }
+.kata-card .kc-none { font-weight: 600; font-size: 10px; letter-spacing: 0.5px; color: var(--dim); margin-top: 15px; }
+.kata-card.inactive { background: var(--surface-2); border: 1px solid rgba(255, 255, 255, 0.05); border-top: 2px solid rgba(214, 146, 20, 0.16); opacity: 0.62; }
+.kata-card.inactive .kc-title { font-weight: 600; color: #9ca0b3; }
+
+/* Full-width row (solo kata) */
+.kata-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  background: #11152e;
+  border: 1px solid rgba(214, 146, 20, 0.22);
+  border-left: 3px solid var(--crimson);
+  border-radius: 9px;
+  padding: 13px 15px;
+  color: var(--text);
+}
+.kata-row .kr-title { font-family: var(--serif); font-weight: 700; font-size: 18px; color: var(--text); }
+.kata-row .kr-label { font-weight: 600; font-size: 9px; letter-spacing: 1.5px; color: var(--gold); margin-top: 4px; }
+.kata-row .kr-stats { margin-left: auto; display: flex; gap: 16px; }
+.kata-row .kr-none { margin-left: auto; font-weight: 600; font-size: 10px; color: var(--dim); }
+.kata-row.inactive { background: var(--surface-2); border: 1px solid rgba(255, 255, 255, 0.05); border-left: 3px solid rgba(214, 146, 20, 0.22); opacity: 0.62; }
+.kata-row.inactive .kr-title { font-weight: 600; color: #9ca0b3; }
+.kata-row.inactive .kr-label { color: var(--dim); }
+
+button.kata-card, button.kata-row { cursor: pointer; font: inherit; transition: transform 0.05s ease, border-color 0.15s ease; }
+button.kata-card:active, button.kata-row:active { transform: scale(0.99); }
 
 .list { display: flex; flex-direction: column; gap: 13px; }
 
