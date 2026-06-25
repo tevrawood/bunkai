@@ -8,7 +8,7 @@ import BunkaiHome from './pages/BunkaiHome.jsx'
 import BunkaiList from './pages/BunkaiList.jsx'
 import BunkaiForm from './pages/BunkaiForm.jsx'
 import BunkaiDetail from './pages/BunkaiDetail.jsx'
-import Log from './pages/Log.jsx'
+import Notes from './pages/Notes.jsx'
 
 function SignInScreen() {
   return (
@@ -48,7 +48,7 @@ export default function App() {
             <Route path="/bunkai" element={<BunkaiHome />} />
             <Route path="/bunkai/new" element={<BunkaiForm />} />
             <Route path="/bunkai/:bunkaiId" element={<BunkaiDetail />} />
-            <Route path="/log" element={<Log />} />
+            <Route path="/notes" element={<Notes />} />
           </Routes>
         </Layout>
       </SignedIn>

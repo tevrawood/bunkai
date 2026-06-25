@@ -6,7 +6,7 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
 
   // Top-level routes don't get a back button.
-  const isRoot = ['/', '/bunkai', '/log'].includes(location.pathname)
+  const isRoot = ['/', '/bunkai', '/notes'].includes(location.pathname)
 
   return (
     <div className="app">
@@ -36,9 +36,9 @@ export default function Layout({ children }) {
           <span className="ico"><KataIcon /></span>
           Kata
         </NavLink>
-        <NavLink to="/log">
-          <span className="ico"><LogIcon /></span>
-          Log
+        <NavLink to="/notes">
+          <span className="ico"><NotesIcon /></span>
+          Notes
         </NavLink>
       </nav>
     </div>
@@ -68,13 +68,14 @@ function KataIcon() {
   )
 }
 
-// Open book — the training log.
-function LogIcon() {
+// Pencil over lines — dated training notes.
+function NotesIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 6.5C10.4 5.2 7.6 4.7 4.5 5.2v13c3.1-.5 5.9 0 7.5 1.3" />
-      <path d="M12 6.5c1.6-1.3 4.4-1.8 7.5-1.3v13c-3.1-.5-5.9 0-7.5 1.3" />
-      <path d="M12 6.5V19.8" />
+      <path d="M4 7h11" />
+      <path d="M4 12h7" />
+      <path d="M4 17h6" />
+      <path d="M19.5 9.5l-7 7-2.5.6.6-2.5 7-7a1.3 1.3 0 0 1 1.9 1.9z" />
     </svg>
   )
 }

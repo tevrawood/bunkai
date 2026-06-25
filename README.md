@@ -15,7 +15,8 @@ Designed to be used on a phone, on the dojo floor.
 - Collapsible move blocks — only expand what you're using
 - Every dropdown defaults to `—`, so partial entries are fine
   (only the attack type is required)
-- **Log view** across all kata with kata filter + **CSV export**
+- **Bunkai view** across all kata with kata filter + **CSV export**
+- Dated, searchable training **notes** (jot or dictate)
 - Dark, minimal, large tap targets
 
 ---
@@ -148,7 +149,9 @@ on conflict do nothing;
 > **Already have an older database?** Run
 > [`migration-bunkai-kata-link.sql`](migration-bunkai-kata-link.sql) in the SQL
 > editor to add the `kata_id` + `move_numbers` columns the standalone Bunkai tab
-> needs. (A fresh run of the schema above already includes them.)
+> needs, and [`migration-notes.sql`](migration-notes.sql) to add the `notes`
+> table for the Notes tab. (A fresh run of the schema above already includes the
+> bunkai columns.)
 
 ### Row-level security (RLS)
 
@@ -273,10 +276,11 @@ src/
   pages/
     KataList.jsx        Home — grid of kata
     Segments.jsx        Segments for a kata + add modal
+    BunkaiHome.jsx      Bunkai tab — all entries, kata filter, CSV export, add
     BunkaiList.jsx      Bunkai entries for a segment
-    BunkaiForm.jsx      The core capture form
+    BunkaiForm.jsx      The core capture form (typed or voice-parsed)
     BunkaiDetail.jsx    Full read-only entry + delete
-    Log.jsx             All entries, filter, CSV export
+    Notes.jsx           Dated, searchable training notes
 ```
 
 ## Future phases

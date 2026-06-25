@@ -66,7 +66,7 @@ export default function BunkaiDetail() {
       alert('Could not delete: ' + error.message)
       return
     }
-    navigate(segId ? `/segment/${segId}` : '/log')
+    navigate(segId ? `/segment/${segId}` : '/bunkai')
   }
 
   if (loading) return <div className="spinner" />
