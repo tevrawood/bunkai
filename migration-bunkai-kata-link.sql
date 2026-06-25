@@ -16,3 +16,8 @@ alter table bunkai
   add column if not exists move_numbers int[];
 
 create index if not exists bunkai_user_kata_idx on bunkai (user_id, kata_id);
+
+-- Force PostgREST to refresh its schema cache so the API sees the new columns
+-- right away (otherwise inserts can fail with "could not find the 'kata_id'
+-- column ... in the schema cache" until the cache reloads on its own).
+notify pgrst, 'reload schema';
