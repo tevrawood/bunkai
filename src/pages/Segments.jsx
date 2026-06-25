@@ -106,7 +106,17 @@ export default function Segments() {
       )}
 
       <div className="fab-row">
-        <button className="btn btn-primary btn-block" onClick={() => setShowModal(true)}>
+        <button
+          className="btn btn-record btn-block"
+          onClick={() => navigate(`/kata/${kataId}/build`)}
+        >
+          🎙 Build Kata Moves
+        </button>
+        <button
+          className="btn btn-primary btn-block"
+          style={{ marginTop: 10 }}
+          onClick={() => setShowModal(true)}
+        >
           + Add Segment
         </button>
       </div>
