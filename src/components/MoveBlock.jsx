@@ -24,7 +24,8 @@ export default function MoveBlock({ index, prefix, data, onChange, defaultOpen }
   return (
     <div className="move-block">
       <button type="button" className="mb-head" onClick={() => setOpen((o) => !o)}>
-        <span className="mb-title">Move {index}</span>
+        <span className="mb-num">{index}</span>
+        <span className="mb-title">Move</span>
         <span className="mb-sum">{summary}</span>
         <span className="mb-caret">{open ? '▲' : '▼'}</span>
       </button>
