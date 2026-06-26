@@ -3,18 +3,21 @@
 // NEVER reaches the client. Keep this in sync with src/lib/voice.js.
 export const config = { runtime: 'edge' }
 
-// Nudges Whisper toward the karate vocabulary it would otherwise mangle.
+// Biases Whisper toward the Okinawan/Japanese vocabulary it would otherwise
+// mangle. The speaker mixes romaji and English, so prime both — Whisper only
+// uses ~224 tokens of this, so keep it to the highest-value terms.
 const PROMPT =
-  'Karate kata move description in English. Likely terms: ' +
-  'stances (cat stance, front stance, back stance, horse stance, ' +
-  'naihanchi stance, sumo stance); blocks (middle block, high block, ' +
-  'low block, knife hand block, outside block, double block); ' +
-  'punches (lunge punch, reverse punch, high punch, middle punch); ' +
-  'strikes (elbow, back fist, hammer fist, spear hand, palm heel); ' +
-  'kicks (front kick, roundhouse, side kick, back kick, knee strike); ' +
-  'directions (turn left, turn right, 90, 180, 270 degrees, pivot); ' +
-  'movements (step forward, step back, in place, cross step, slide); ' +
-  'chamber, hikite, kiai, move number.'
+  'Okinawan Shorin-ryu Shorinkan karate; the speaker mixes Japanese romaji and ' +
+  'English. Likely vocabulary — ' +
+  'stances: shizentai, neko-ashi-dachi, zenkutsu-dachi, kokutsu-dachi, ' +
+  'kiba-dachi, shiko-dachi, naihanchi-dachi, sanchin-dachi, heiko-dachi; ' +
+  'blocks: gedan-barai, age-uke, soto-uke, uchi-uke, shuto-uke, morote-uke, ' +
+  'kake-uke; punches/strikes: oi-zuki, gyaku-zuki, morote-zuki, uraken, shuto, ' +
+  'haito, empi, tettsui, shotei, nukite; kicks: mae-geri, mawashi-geri, ' +
+  'yoko-geri, ushiro-geri, hiza-geri; grappling: tuite, kyusho, hikite, ' +
+  'kote-gaeshi, ude-garami, ude-gatame, kansetsu; ' +
+  'levels: jodan, chudan, gedan; kata: Wanshu, Naihanchi, Pinan, Passai, ' +
+  'Kusanku, Chinto, Gojushiho. Also: kiai, turn 90/180, step, pivot, takedown.'
 
 // Whisper detects format from the filename extension, so map the recording's
 // content-type to a supported extension.

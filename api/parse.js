@@ -52,14 +52,40 @@ const SCHEMA = {
   required: ['attack', 'attack_side', 'stance', 'finish', 'kiai', 'moves', 'technique_notes'],
 }
 
+// Code → meaning reference, built from the lexicons so the model knows what each
+// short code means (it only sees the bare codes in the schema otherwise). Keeps
+// the glossary in sync with the dropdowns automatically.
+const glossary = (label, lex) =>
+  `${label}: ${lex.filter((o) => o.value !== NONE).map((o) => `${o.value} = ${o.label}`).join('; ')}`
+
+const REFERENCE = [
+  glossary('Attacks', ATTACKS),
+  glossary("Attacker's side", SIDES),
+  glossary('Stances', STANCES),
+  glossary('Move techniques (blocks/strikes/locks)', DEFENSE),
+  glossary('Levels', LEVELS),
+  glossary('Hikite actions', HIKITE_ACTIONS),
+  glossary('Tuite (joint locks)', TUITE),
+  glossary('Kyusho (pressure points)', KYUSHO),
+  glossary('Finishes', FINISH),
+].join('\n')
+
 const SYSTEM =
   "You parse a karate practitioner's spoken description of a bunkai (a practical " +
-  'self-defense application of a kata) into structured fields. Call the ' +
-  'record_bunkai tool exactly once. Use ONLY the enum codes allowed by the ' +
-  'schema — never invent values and never use full Japanese names. If something ' +
-  'is not clearly stated, use null; do not guess. Map the defender\'s techniques ' +
-  'to the moves array in the order performed (at most three). Put any extra ' +
-  'detail, correction, or context that has no matching field into technique_notes.'
+  'self-defense application of a kata) into structured fields by calling the ' +
+  'record_bunkai tool exactly once.\n\n' +
+  'The speaker uses Okinawan/Japanese terms in romaji, often run together or ' +
+  'loosely spelled — e.g. "nekoashidachi" and "neko ashi dachi" both mean the ' +
+  'Neko stance; "gyaku zuki" = GyzZuki; "shuto uke" = ShutoUk. Common suffixes: ' +
+  '-dachi/-tachi = stance, -zuki/-tsuki = punch/thrust, -uke = block/receive, ' +
+  '-geri = kick, -uchi/-ate = strike, -barai = sweep/parry. Map each spoken ' +
+  'term to the CLOSEST code in the reference below. Never invent codes and never ' +
+  'output full Japanese names — only the codes.\n\n' +
+  'CODE REFERENCE (code = meaning):\n' + REFERENCE + '\n\n' +
+  'Rules: if something is not clearly stated, use null — do not guess. Map the ' +
+  "defender's techniques to the moves array in the order performed (at most " +
+  'three). hikite_target and kyusho both use the pressure-point codes. Put any ' +
+  'extra detail, correction, or context with no matching field into technique_notes.'
 
 export default async function handler(req) {
   if (req.method !== 'POST') return json({ error: { message: 'Method not allowed' } }, 405)
