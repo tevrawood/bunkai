@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useSupabase } from '../lib/useSupabase.js'
 import { NONE, labelFor } from '../lib/lexicons.js'
+import Modal from '../components/Modal.jsx'
+import { Input, Textarea } from '../components/Field.jsx'
 
 function Row({ label, value }) {
   if (!value || value === NONE) return null
@@ -40,6 +42,9 @@ export default function BunkaiDetail() {
   const supabase = useSupabase()
   const [b, setB] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ attack: '', attack_side: '', stance: '', finish: '', technique_notes: '' })
 
   useEffect(() => {
     let active = true
@@ -67,6 +72,37 @@ export default function BunkaiDetail() {
       return
     }
     navigate(segId ? `/segment/${segId}` : '/bunkai')
+  }
+
+  function openEdit() {
+    setForm({
+      attack: b.attack ?? '',
+      attack_side: b.attack_side ?? '',
+      stance: b.stance ?? '',
+      finish: b.finish ?? '',
+      technique_notes: b.technique_notes ?? '',
+    })
+    setEditing(true)
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault()
+    setSaving(true)
+    const fields = {
+      attack: form.attack.trim() || null,
+      attack_side: form.attack_side.trim() || null,
+      stance: form.stance.trim() || null,
+      finish: form.finish.trim() || null,
+      technique_notes: form.technique_notes.trim() || null,
+    }
+    const { error } = await supabase.from('bunkai').update(fields).eq('id', bunkaiId)
+    setSaving(false)
+    if (error) {
+      alert('Could not save changes: ' + error.message)
+      return
+    }
+    setB((prev) => ({ ...prev, ...fields }))
+    setEditing(false)
   }
 
   if (loading) return <div className="spinner" />
@@ -125,9 +161,48 @@ export default function BunkaiDetail() {
         </section>
       )}
 
-      <button className="btn btn-danger btn-block" style={{ marginTop: 8 }} onClick={remove}>
+      <button className="btn btn-primary btn-block" style={{ marginTop: 8 }} onClick={openEdit}>
+        Edit Entry
+      </button>
+      <button className="btn btn-danger btn-block" style={{ marginTop: 10 }} onClick={remove}>
         Delete Entry
       </button>
+
+      {editing && (
+        <Modal title="Edit Bunkai" onClose={() => setEditing(false)}>
+          <form onSubmit={saveEdit}>
+            <Input
+              label="Attack"
+              value={form.attack}
+              onChange={(e) => setForm({ ...form, attack: e.target.value })}
+              autoFocus
+            />
+            <Input
+              label="Attacker's side"
+              value={form.attack_side}
+              onChange={(e) => setForm({ ...form, attack_side: e.target.value })}
+            />
+            <Input
+              label="Stance"
+              value={form.stance}
+              onChange={(e) => setForm({ ...form, stance: e.target.value })}
+            />
+            <Input
+              label="Finish"
+              value={form.finish}
+              onChange={(e) => setForm({ ...form, finish: e.target.value })}
+            />
+            <Textarea
+              label="Notes"
+              value={form.technique_notes}
+              onChange={(e) => setForm({ ...form, technique_notes: e.target.value })}
+            />
+            <button className="btn btn-primary btn-block" disabled={saving}>
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </form>
+        </Modal>
+      )}
     </>
   )
 }

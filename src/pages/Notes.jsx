@@ -23,6 +23,8 @@ export default function Notes() {
   const [body, setBody] = useState('')
   const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState('')
+  const [editId, setEditId] = useState(null)
+  const [editText, setEditText] = useState('')
 
   async function load() {
     if (!isSupabaseConfigured) {
@@ -74,6 +76,24 @@ export default function Notes() {
     setNotes((prev) => prev.filter((n) => n.id !== id))
   }
 
+  function startEdit(n) {
+    setEditId(n.id)
+    setEditText(n.body)
+  }
+
+  async function saveEdit(id) {
+    const text = editText.trim()
+    if (!text) return
+    const { error } = await supabase.from('notes').update({ body: text }).eq('id', id)
+    if (error) {
+      alert('Could not save changes: ' + error.message)
+      return
+    }
+    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, body: text } : n)))
+    setEditId(null)
+    setEditText('')
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return notes
@@ -120,21 +140,63 @@ export default function Notes() {
         <div className="list">
           {filtered.map((n) => (
             <div key={n.id} className="card">
-              <div className="snote" style={{ whiteSpace: 'pre-wrap' }}>{n.body}</div>
-              <div
-                className="scount"
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}
-              >
-                <span>{fmtDate(n.created_at)}</span>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  style={{ padding: '4px 12px' }}
-                  onClick={() => remove(n.id)}
-                >
-                  Delete
-                </button>
-              </div>
+              {editId === n.id ? (
+                <>
+                  <textarea
+                    className="textarea"
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    autoFocus
+                  />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ flex: 1 }}
+                      disabled={!editText.trim()}
+                      onClick={() => saveEdit(n.id)}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      style={{ flex: 1 }}
+                      onClick={() => { setEditId(null); setEditText('') }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="snote" style={{ whiteSpace: 'pre-wrap' }}>{n.body}</div>
+                  <div
+                    className="scount"
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}
+                  >
+                    <span>{fmtDate(n.created_at)}</span>
+                    <span style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ padding: '4px 12px' }}
+                        onClick={() => startEdit(n)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ padding: '4px 12px' }}
+                        onClick={() => remove(n.id)}
+                      >
+                        Delete
+                      </button>
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>

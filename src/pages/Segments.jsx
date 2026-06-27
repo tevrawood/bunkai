@@ -17,6 +17,7 @@ export default function Segments() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState(null) // segment being edited, or null = new
   const [form, setForm] = useState({ name: '', move_range: '', notes: '' })
 
   async function load() {
@@ -51,25 +52,53 @@ export default function Segments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kataId, supabase])
 
+  function openNew() {
+    setEditing(null)
+    setForm({ name: '', move_range: '', notes: '' })
+    setShowModal(true)
+  }
+
+  function openEdit(s) {
+    setEditing(s)
+    setForm({ name: s.name ?? '', move_range: s.move_range ?? '', notes: s.notes ?? '' })
+    setShowModal(true)
+  }
+
+  function closeModal() {
+    setShowModal(false)
+    setEditing(null)
+    setForm({ name: '', move_range: '', notes: '' })
+  }
+
   async function saveSegment(e) {
     e.preventDefault()
     if (!form.name.trim()) return
     setSaving(true)
-    const { error } = await supabase.from('segments').insert({
-      user_id: userId,
-      kata_id: kataId,
+    const fields = {
       name: form.name.trim(),
       move_range: form.move_range.trim() || null,
       notes: form.notes.trim() || null,
-    })
+    }
+    const { error } = editing
+      ? await supabase.from('segments').update(fields).eq('id', editing.id)
+      : await supabase.from('segments').insert({ user_id: userId, kata_id: kataId, ...fields })
     setSaving(false)
     if (error) {
       alert('Could not save segment: ' + error.message)
       return
     }
-    setForm({ name: '', move_range: '', notes: '' })
-    setShowModal(false)
+    closeModal()
     load()
+  }
+
+  async function removeSegment(s) {
+    if (!confirm(`Delete segment "${s.name}"? Bunkai logged under it will also be removed. This cannot be undone.`)) return
+    const { error } = await supabase.from('segments').delete().eq('id', s.id)
+    if (error) {
+      alert('Could not delete segment: ' + error.message)
+      return
+    }
+    setSegments((prev) => prev.filter((x) => x.id !== s.id))
   }
 
   if (loading) return <div className="spinner" />
@@ -87,20 +116,32 @@ export default function Segments() {
       ) : (
         <div className="list">
           {segments.map((s) => (
-            <button
-              key={s.id}
-              className="card seg-card"
-              onClick={() => navigate(`/segment/${s.id}`)}
-            >
-              <div className="row-top">
-                <span className="sname">{s.name}</span>
-                {s.move_range && <span className="srange">{s.move_range}</span>}
+            <div key={s.id} className="card seg-card">
+              <div
+                role="button"
+                tabIndex={0}
+                style={{ cursor: 'pointer' }}
+                onClick={() => navigate(`/segment/${s.id}`)}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(`/segment/${s.id}`)}
+              >
+                <div className="row-top">
+                  <span className="sname">{s.name}</span>
+                  {s.move_range && <span className="srange">{s.move_range}</span>}
+                </div>
+                {s.notes && <div className="snote">{s.notes}</div>}
+                <div className="scount">
+                  {counts[s.id] ? `${counts[s.id]} bunkai logged` : 'No bunkai yet'}
+                </div>
               </div>
-              {s.notes && <div className="snote">{s.notes}</div>}
-              <div className="scount">
-                {counts[s.id] ? `${counts[s.id]} bunkai logged` : 'No bunkai yet'}
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+                <button type="button" className="btn btn-ghost" style={{ flex: 1, padding: '6px 12px' }} onClick={() => openEdit(s)}>
+                  Rename / Edit
+                </button>
+                <button type="button" className="btn btn-ghost" style={{ flex: 1, padding: '6px 12px' }} onClick={() => removeSegment(s)}>
+                  Delete
+                </button>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -115,14 +156,14 @@ export default function Segments() {
         <button
           className="btn btn-primary btn-block"
           style={{ marginTop: 10 }}
-          onClick={() => setShowModal(true)}
+          onClick={openNew}
         >
           + Add Segment
         </button>
       </div>
 
       {showModal && (
-        <Modal title="New Segment" onClose={() => setShowModal(false)}>
+        <Modal title={editing ? 'Edit Segment' : 'New Segment'} onClose={closeModal}>
           <form onSubmit={saveSegment}>
             <Input
               label="Name"
@@ -144,7 +185,7 @@ export default function Segments() {
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
             <button className="btn btn-primary btn-block" disabled={saving || !form.name.trim()}>
-              {saving ? 'Saving…' : 'Save Segment'}
+              {saving ? 'Saving…' : editing ? 'Save Changes' : 'Save Segment'}
             </button>
           </form>
         </Modal>

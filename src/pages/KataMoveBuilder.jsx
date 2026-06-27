@@ -22,6 +22,8 @@ export default function KataMoveBuilder() {
   const [audioBlob, setAudioBlob] = useState(null)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [editId, setEditId] = useState(null)
+  const [editText, setEditText] = useState('')
 
   async function load() {
     setLoading(true)
@@ -122,6 +124,36 @@ export default function KataMoveBuilder() {
     setMoveNumber((n) => n + 1)
   }
 
+  function startEdit(m) {
+    setEditId(m.id)
+    setEditText(m.notes ?? '')
+  }
+
+  async function saveEdit(id) {
+    const text = editText.trim()
+    const { error } = await supabase
+      .from('kata_moves')
+      .update({ notes: text || null })
+      .eq('id', id)
+    if (error) {
+      alert('Could not save changes: ' + error.message)
+      return
+    }
+    setMoves((prev) => prev.map((m) => (m.id === id ? { ...m, notes: text || null } : m)))
+    setEditId(null)
+    setEditText('')
+  }
+
+  async function deleteMove(m) {
+    if (!confirm(`Delete move ${m.move_number}? This cannot be undone.`)) return
+    const { error } = await supabase.from('kata_moves').delete().eq('id', m.id)
+    if (error) {
+      alert('Could not delete move: ' + error.message)
+      return
+    }
+    setMoves((prev) => prev.filter((x) => x.id !== m.id))
+  }
+
   if (loading) return <div className="spinner" />
 
   return (
@@ -175,13 +207,46 @@ export default function KataMoveBuilder() {
           <div className="list">
             {moves.map((m) => (
               <div key={m.id} className="card">
-                <div style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
-                  <span className="bmn-chip">{m.move_number}</span>
-                  <span style={{ fontSize: 14, flex: 1 }}>
-                    {m.notes || <span style={{ color: 'var(--dim)' }}>(audio only)</span>}
-                  </span>
-                  {m.audio_url && <span title="audio saved">🎙</span>}
-                </div>
+                {editId === m.id ? (
+                  <>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+                      <span className="bmn-chip">{m.move_number}</span>
+                      <span style={{ fontSize: 12, color: 'var(--muted)' }}>Editing move {m.move_number}</span>
+                    </div>
+                    <textarea
+                      className="textarea"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      autoFocus
+                    />
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={() => saveEdit(m.id)}>
+                        Save
+                      </button>
+                      <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setEditId(null); setEditText('') }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
+                      <span className="bmn-chip">{m.move_number}</span>
+                      <span style={{ fontSize: 14, flex: 1 }}>
+                        {m.notes || <span style={{ color: 'var(--dim)' }}>(audio only)</span>}
+                      </span>
+                      {m.audio_url && <span title="audio saved">🎙</span>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+                      <button type="button" className="btn btn-ghost" style={{ flex: 1, padding: '6px 12px' }} onClick={() => startEdit(m)}>
+                        Edit
+                      </button>
+                      <button type="button" className="btn btn-ghost" style={{ flex: 1, padding: '6px 12px' }} onClick={() => deleteMove(m)}>
+                        Delete
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>

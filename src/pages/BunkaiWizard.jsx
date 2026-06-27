@@ -15,6 +15,7 @@ const COLORS = {
   bg: "#000321", surface: "#0a0f2e", border: "#1e2a4a",
   crimson: "#8B1A1A", crimsonBright: "#C0392B",
   gold: "#C9A84C", goldLight: "#E8C87A",
+  green: "#2F7B52", greenDeep: "#25653f",
   text: "#E8E8E8", textMuted: "#8892A4",
 };
 
@@ -496,27 +497,12 @@ export default function BunkaiWizard() {
     return parts.join(". ");
   }
 
-  // Full structured capture — stored in the `payload` jsonb column when it
-  // exists (run migration-bunkai-payload.sql). Versioned so a future reader
-  // knows the shape.
-  function buildPayload() {
-    return {
-      v: 2,
-      kata: { id: kata || null, name: kataName || null, move: kataMove || null },
-      attack: { count: numAttacks, type: attackType, subtype: attackSub, extra: detail?.extra ? attackExtra : null },
-      counter: { side: counterSide || null, force: counterForce || null, dir: counterDir.side || null, deg: counterDir.deg || null, stance: counterStance || null },
-      motion: { type: moveType || null, bearing, turnDir: turnDir || null, turnDeg: turnDeg || null },
-      control: { combo: comboActions, stanceShift, stance: stanceShift ? controlStance || null : null },
-      finish: { type: finishType || null, data: finishData, canContinue: canContinue || null },
-    };
-  }
-
   async function save() {
     setSaving(true);
     setSaveMsg(null);
-    // Columns that already exist today — these alone make the entry show up in
-    // the existing list / detail / CSV views with no schema change.
-    const base = {
+    // Writes the existing bunkai columns plus a readable summary — no schema
+    // change needed. The structured detail is captured in the summary line.
+    const row = {
       user_id: userId,
       kata_id: kata || null,
       attack: attackLabel || null,
@@ -525,13 +511,7 @@ export default function BunkaiWizard() {
       finish: finishType || null,
       technique_notes: buildSummary(),
     };
-
-    // Try with the full payload first; if the column isn't there yet, retry
-    // without it so saving still works before the migration is run.
-    let { error } = await supabase.from("bunkai").insert({ ...base, payload: buildPayload() });
-    if (error && /payload/i.test(error.message || "")) {
-      ({ error } = await supabase.from("bunkai").insert(base));
-    }
+    const { error } = await supabase.from("bunkai").insert(row);
     setSaving(false);
     if (error) {
       // Saving is best-effort — the wizard still worked. Surface, don't block.
@@ -763,9 +743,10 @@ export default function BunkaiWizard() {
             </button>
           )}
           <button onClick={() => isLast ? save() : setStep(s => s + 1)} disabled={saving} style={{
-            background: isLast ? COLORS.crimsonBright : COLORS.gold, border: "none", borderRadius: 10,
+            background: isLast ? COLORS.green : COLORS.gold, border: "none", borderRadius: 10,
             padding: "15px", fontSize: 15, fontWeight: 700,
             color: isLast ? "#fff" : COLORS.bg, cursor: saving ? "default" : "pointer", width: "100%",
+            boxShadow: isLast ? "0 6px 20px rgba(47,123,82,0.35)" : "none",
             opacity: saving ? 0.7 : 1,
           }}>
             {isLast ? (saving ? "Saving…" : "Save Bunkai") : `Next — ${STEPS[step + 1].label}`}
