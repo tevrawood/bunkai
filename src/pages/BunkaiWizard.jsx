@@ -733,15 +733,10 @@ export default function BunkaiWizard() {
           {saveMsg && (
             <div style={{ fontSize: 12, color: COLORS.crimsonBright, lineHeight: 1.5, textAlign: "center" }}>{saveMsg}</div>
           )}
-          {step > 1 && (
-            <button onClick={() => setShowVoice(true)} style={{
-              background: "transparent", border: `1px solid ${COLORS.crimson}`, borderRadius: 10,
-              padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", width: "100%",
-            }}>
-              <span style={{ fontSize: 17 }}>🎙</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: COLORS.crimsonBright }}>Record instead</span>
-            </button>
-          )}
+          {/* "Record instead" hidden until the real voice pipeline is wired in.
+              Planned: a record-first step before Kata — record once with coached
+              prompts, transcribe + auto-fill, then Save or Revise. See
+              VoiceModal below (kept for that rebuild). */}
           <button onClick={() => isLast ? save() : setStep(s => s + 1)} disabled={saving} style={{
             background: isLast ? COLORS.green : COLORS.gold, border: "none", borderRadius: 10,
             padding: "15px", fontSize: 15, fontWeight: 700,
