@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@clerk/clerk-react";
 import { useSupabase } from "../lib/useSupabase.js";
 import { CURRICULUM } from "../lib/curriculum.js";
+import VoiceRecorder from "../components/VoiceRecorder.jsx";
 
 // New stepped Bunkai capture wizard (Kata → Attack → Counter → Motion →
 // Control → Finish). Self-contained inline styling so it renders consistently
@@ -392,6 +393,8 @@ export default function BunkaiWizard() {
   const supabase = useSupabase();
   const { userId } = useAuth();
 
+  const [phase, setPhase] = useState("intro"); // intro | form | review
+  const [transcript, setTranscript] = useState("");
   const [step, setStep] = useState(0);
   const [showVoice, setShowVoice] = useState(false);
   const [pace, setPace] = useState("normal");
@@ -497,11 +500,24 @@ export default function BunkaiWizard() {
     return parts.join(". ");
   }
 
+  // Voice: capture the spoken transcript and move to the review screen. Parsing
+  // into the individual fields is a later upgrade — for now the words are kept
+  // as a note so nothing is lost.
+  function onVoice({ transcript: t }) {
+    if (!t) return; // transcription failed — VoiceRecorder shows its own error
+    setTranscript(t);
+    setPhase("review");
+  }
+
   async function save() {
     setSaving(true);
     setSaveMsg(null);
     // Writes the existing bunkai columns plus a readable summary — no schema
-    // change needed. The structured detail is captured in the summary line.
+    // change needed. The structured detail is captured in the summary line, and
+    // any spoken transcript is appended so the words are never lost.
+    const notes = [buildSummary(), transcript ? `Recorded: ${transcript}` : ""]
+      .filter(Boolean)
+      .join("\n\n");
     const row = {
       user_id: userId,
       kata_id: kata || null,
@@ -509,7 +525,7 @@ export default function BunkaiWizard() {
       attack_side: detail?.extra ? attackExtra : null,
       stance: counterStance || controlStance || null,
       finish: finishType || null,
-      technique_notes: buildSummary(),
+      technique_notes: notes,
     };
     const { error } = await supabase.from("bunkai").insert(row);
     setSaving(false);
@@ -521,6 +537,125 @@ export default function BunkaiWizard() {
     navigate("/bunkai");
   }
 
+  const shell = { background: COLORS.bg, fontFamily: "'Inter', system-ui, sans-serif", color: COLORS.text, display: "flex", justifyContent: "center" };
+  const col = { width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" };
+  const headerSt = { background: COLORS.bg, borderBottom: `1px solid ${COLORS.border}`, padding: "14px 20px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+
+  // ── INTRO: record-first ──────────────────────────────────────────────────
+  if (phase === "intro") {
+    return (
+      <div style={shell}>
+        <div style={col}>
+          <div style={headerSt}>
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: COLORS.gold }}>Add Bunkai</div>
+              <div style={{ fontSize: 11, color: COLORS.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginTop: 2 }}>
+                Record it, or fill it out
+              </div>
+            </div>
+            <div onClick={() => navigate("/bunkai")} style={{ fontSize: 18, color: COLORS.textMuted, cursor: "pointer" }}>✕</div>
+          </div>
+
+          <div style={{ padding: "20px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: COLORS.text, lineHeight: 1 }}>Record</div>
+              <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 5, lineHeight: 1.5 }}>
+                Set the kata (optional), then talk through the whole bunkai in one go. We'll keep your words and you can save or revise.
+              </div>
+            </div>
+
+            <Sel
+              label="Kata (optional)"
+              options={kataList.map(k => ({ value: k.id, label: k.name }))}
+              value={kata}
+              onChange={v => { setKata(v); setKataMove(""); }}
+              placeholder="No kata (unattributed)"
+            />
+
+            <Field label="Talk through it — in this order">
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "14px 16px" }}>
+                {["Attack & counter", "Motion", "Control / combo", "Finish"].map((p, i) => (
+                  <div key={p} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.crimsonBright, minWidth: 14 }}>{i + 1}</span>
+                    <span style={{ fontSize: 13, color: COLORS.text }}>{p}</span>
+                  </div>
+                ))}
+              </div>
+            </Field>
+
+            <VoiceRecorder onResult={onVoice} label="Tap to record your bunkai" />
+
+            <button onClick={() => setPhase("form")} style={{
+              background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 10,
+              padding: "13px", fontSize: 14, fontWeight: 600, color: COLORS.textMuted, cursor: "pointer", width: "100%",
+            }}>
+              Or fill it out manually
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── REVIEW: after recording ──────────────────────────────────────────────
+  if (phase === "review") {
+    return (
+      <div style={shell}>
+        <div style={col}>
+          <div style={headerSt}>
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: COLORS.gold }}>Review</div>
+              <div style={{ fontSize: 11, color: COLORS.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginTop: 2 }}>
+                {kataName || "No kata"}
+              </div>
+            </div>
+            <div onClick={() => navigate("/bunkai")} style={{ fontSize: 18, color: COLORS.textMuted, cursor: "pointer" }}>✕</div>
+          </div>
+
+          <div style={{ padding: "20px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: COLORS.text, lineHeight: 1 }}>Here's what you recorded</div>
+              <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 5, lineHeight: 1.5 }}>
+                Save it as a note now, or revise to fill in the structured fields.
+              </div>
+            </div>
+
+            <Field label="Transcript">
+              <div style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "14px 16px", fontSize: 14, color: COLORS.text, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+                {transcript}
+              </div>
+            </Field>
+
+            {saveMsg && <div style={{ fontSize: 12, color: COLORS.crimsonBright, lineHeight: 1.5 }}>{saveMsg}</div>}
+
+            <button onClick={save} disabled={saving} style={{
+              background: COLORS.green, border: "none", borderRadius: 10, padding: "15px",
+              fontSize: 15, fontWeight: 700, color: "#fff", cursor: saving ? "default" : "pointer",
+              width: "100%", boxShadow: "0 6px 20px rgba(47,123,82,0.35)", opacity: saving ? 0.7 : 1,
+            }}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+
+            <button onClick={() => { setPhase("form"); setStep(0); }} style={{
+              background: COLORS.gold, border: "none", borderRadius: 10, padding: "15px",
+              fontSize: 15, fontWeight: 700, color: COLORS.bg, cursor: "pointer", width: "100%",
+            }}>
+              Revise — walk me through it
+            </button>
+
+            <button onClick={() => { setTranscript(""); setPhase("intro"); }} style={{
+              background: "transparent", border: "none", padding: "4px", fontSize: 13,
+              color: COLORS.textMuted, cursor: "pointer", width: "100%",
+            }}>
+              ↺ Re-record
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── FORM: the stepped wizard ─────────────────────────────────────────────
   return (
     <div style={{ background: COLORS.bg, fontFamily: "'Inter', system-ui, sans-serif", color: COLORS.text, display: "flex", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
