@@ -522,11 +522,11 @@ export default function BunkaiWizard() {
   }
 
   return (
-    <div style={{ background: COLORS.bg, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", color: COLORS.text, display: "flex", justifyContent: "center" }}>
+    <div style={{ background: COLORS.bg, fontFamily: "'Inter', system-ui, sans-serif", color: COLORS.text, display: "flex", justifyContent: "center" }}>
       <div style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" }}>
 
         {/* Header */}
-        <div style={{ position: "sticky", top: 0, zIndex: 10, background: COLORS.bg,
+        <div style={{ background: COLORS.bg,
           borderBottom: `1px solid ${COLORS.border}`, padding: "14px 20px 12px",
           display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -566,7 +566,7 @@ export default function BunkaiWizard() {
         </div>
 
         {/* Step content */}
-        <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
+        <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 16 }}>
 
           {/* KATA */}
           {step === 0 && (
