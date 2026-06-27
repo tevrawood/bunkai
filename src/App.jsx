@@ -7,6 +7,7 @@ import KataMoveBuilder from './pages/KataMoveBuilder.jsx'
 import BunkaiHome from './pages/BunkaiHome.jsx'
 import BunkaiList from './pages/BunkaiList.jsx'
 import BunkaiForm from './pages/BunkaiForm.jsx'
+import BunkaiWizard from './pages/BunkaiWizard.jsx'
 import BunkaiDetail from './pages/BunkaiDetail.jsx'
 import Notes from './pages/Notes.jsx'
 
@@ -47,7 +48,7 @@ export default function App() {
             <Route path="/segment/:segmentId" element={<BunkaiList />} />
             <Route path="/segment/:segmentId/new" element={<BunkaiForm />} />
             <Route path="/bunkai" element={<BunkaiHome />} />
-            <Route path="/bunkai/new" element={<BunkaiForm />} />
+            <Route path="/bunkai/new" element={<BunkaiWizard />} />
             <Route path="/bunkai/:bunkaiId" element={<BunkaiDetail />} />
             <Route path="/notes" element={<Notes />} />
           </Routes>
