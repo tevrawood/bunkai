@@ -10,8 +10,8 @@
 
 export const CURRICULUM = [
   {
-    rank: '01', name: 'Wanshu', kanji: '汪楫', sub: 'SOLO KATA', solo: true,
-    members: [{ db: 'Wanshu', title: 'Wanshu', sup: '' }],
+    rank: '01', name: 'Wansu', kanji: '汪楫', sub: 'SOLO KATA', solo: true,
+    members: [{ db: 'Wansu', title: 'Wansu', sup: '' }],
   },
   {
     rank: '02', name: 'Naihanchi', kanji: 'ナイハンチ', sub: 'SHODAN · NIDAN · SANDAN',

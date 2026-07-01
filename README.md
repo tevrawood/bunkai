@@ -9,7 +9,7 @@ Designed to be used on a phone, on the dojo floor.
 ## Features
 
 - **15 Shorinkan kata**, seeded and shared, grouped by curriculum series
-  (Wanshu, Naihanchi, Pinan, Passai, Kusanku, Chinto, Gojushiho)
+  (Wansu, Naihanchi, Pinan, Passai, Kusanku, Chinto, Gojushiho)
 - **Record-first Add Bunkai wizard** (`/bunkai/new`): talk through the whole
   application in one take, then save it as a note or **revise** through a
   stepped form — Kata → Attack → Counter → Motion → Control → Finish, with a
@@ -152,7 +152,7 @@ create index if not exists bunkai_user_kata_idx on bunkai (user_id, kata_id);
 
 -- ───────────────────────── SEED KATA ─────────────────────────
 insert into kata (name, lineage) values
-  ('Wanshu', 'Shorinkan'),
+  ('Wansu', 'Shorinkan'),
   ('Naihanchi Shodan', 'Shorinkan'),
   ('Naihanchi Nidan', 'Shorinkan'),
   ('Naihanchi Sandan', 'Shorinkan'),

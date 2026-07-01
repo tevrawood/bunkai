@@ -16,7 +16,7 @@ const PROMPT =
   'haito, empi, tettsui, shotei, nukite; kicks: mae-geri, mawashi-geri, ' +
   'yoko-geri, ushiro-geri, hiza-geri; grappling: tuite, kyusho, hikite, ' +
   'kote-gaeshi, ude-garami, ude-gatame, kansetsu; ' +
-  'levels: jodan, chudan, gedan; kata: Wanshu, Naihanchi, Pinan, Passai, ' +
+  'levels: jodan, chudan, gedan; kata: Wansu, Naihanchi, Pinan, Passai, ' +
   'Kusanku, Chinto, Gojushiho. Also: kiai, turn 90/180, step, pivot, takedown.'
 
 // Whisper detects format from the filename extension, so map the recording's
