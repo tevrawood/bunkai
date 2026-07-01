@@ -8,7 +8,17 @@ Designed to be used on a phone, on the dojo floor.
 
 ## Features
 
-- 15 Shorinkan kata, seeded and shared
+- **15 Shorinkan kata**, seeded and shared, grouped by curriculum series
+  (Wanshu, Naihanchi, Pinan, Passai, Kusanku, Chinto, Gojushiho)
+- **Record-first Add Bunkai wizard** (`/bunkai/new`): talk through the whole
+  application in one take, then save it as a note or **revise** through a
+  stepped form — Kata → Attack → Counter → Motion → Control → Finish, with a
+  compass rose for direction and a tap-to-build combination list
+- **Voice capture** everywhere it helps: mic recording is transcribed by
+  **Whisper** through a server-side proxy, primed with Okinawan/Japanese
+  vocabulary so terms like *neko-ashi-dachi* and *gyaku-zuki* come through clean
+- **Kata Move Builder** (`/kata/:id/build`): speak or type each move of a kata
+  in order to build the move list that later attributes each bunkai
 - Slice each kata into **segments** (your study chunks) with instructor/lineage notes
 - Log detailed **bunkai** per segment: attack, stance, up to 3 moves
   (technique, level, hikite action + target, tuite, kyusho), finish, kiai, notes
@@ -17,6 +27,7 @@ Designed to be used on a phone, on the dojo floor.
   (only the attack type is required)
 - **Bunkai view** across all kata with kata filter + **CSV export**
 - Dated, searchable training **notes** (jot or dictate)
+- **Rename, edit, and delete** across kata moves, segments, bunkai, and notes
 - Dark, minimal, large tap targets
 
 ---
@@ -31,11 +42,24 @@ npm run dev
 
 ### Environment variables
 
+**Client (`VITE_`-prefixed, bundled into the app):**
+
 | Variable | Where to get it |
 | --- | --- |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk dashboard → API Keys |
 | `VITE_SUPABASE_URL` | Supabase → Project Settings → Data API |
 | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API Keys (anon/public) |
+
+**Server (used only by the `/api` proxies — never exposed to the client):**
+
+| Variable | Where to get it | Powers |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | OpenAI dashboard → API Keys | `/api/transcribe` (Whisper) |
+| `ANTHROPIC_API_KEY` | Anthropic Console → API Keys | `/api/parse` (Claude field parsing) |
+
+> The two server keys are read by the Vercel serverless functions in `api/` and
+> stay on the server. Voice recording works locally only when these routes are
+> reachable (`vercel dev`), or in any deployed/preview environment.
 
 ---
 
@@ -260,30 +284,44 @@ the Clerk token via the `accessToken` callback.
 ## Project structure
 
 ```
+api/
+  transcribe.js         Whisper proxy (OpenAI) — transcribes recorded audio
+  parse.js              Claude proxy (Anthropic) — transcript → structured fields
 src/
   main.jsx              ClerkProvider + Router bootstrap
   App.jsx               Auth gate + routes
   index.css             Theme + all styling
   lib/
     lexicons.js         Single source of truth for every dropdown
+    curriculum.js       Shorinkan curriculum order (drives the grouped kata view)
     useSupabase.js      Clerk-authed Supabase client hook
+    voice.js            Browser helpers: transcribeAudio + parseBunkai + extFor
     csv.js              Log → CSV export
   components/
     Layout.jsx          Top bar + bottom nav shell
     Field.jsx           Input / Select / Textarea / SegControl
     Modal.jsx           Bottom-sheet modal
     MoveBlock.jsx       Collapsible Move 1/2/3 block
+    VoiceRecorder.jsx   Mic capture → Whisper transcription (reusable)
   pages/
-    KataList.jsx        Home — grid of kata
+    KataList.jsx        Home — kata grouped by curriculum series
     Segments.jsx        Segments for a kata + add modal
+    KataMoveBuilder.jsx Speak/type each move of a kata to build its move list
     BunkaiHome.jsx      Bunkai tab — all entries, kata filter, CSV export, add
     BunkaiList.jsx      Bunkai entries for a segment
     BunkaiForm.jsx      The core capture form (typed or voice-parsed)
+    BunkaiWizard.jsx    Record-first stepped wizard (/bunkai/new)
     BunkaiDetail.jsx    Full read-only entry + delete
     Notes.jsx           Dated, searchable training notes
 ```
 
 ## Future phases
 
-Components are kept small and modular to grow into: stick-figure diagrams,
-video clips, and AI interpretation of sequences.
+Next up: wire **Claude parsing** into the record-first wizard so a spoken
+bunkai auto-fills the structured fields (Kata → Attack → Counter → Motion →
+Control → Finish) instead of only being kept as a note. `api/parse.js` already
+scaffolds the Claude proxy — its schema still reflects the older lexicon fields
+and needs updating to the new wizard shape.
+
+Components are kept small and modular to grow further into: stick-figure
+diagrams, video clips, and AI interpretation of full sequences.

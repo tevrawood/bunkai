@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@clerk/clerk-react";
 import { useSupabase } from "../lib/useSupabase.js";
 import { CURRICULUM } from "../lib/curriculum.js";
@@ -32,14 +32,16 @@ const ATTACK_DETAILS = {
 
 const STANCES = ["Shiko-dachi","Naihanchi-dachi","Zenkutsu-dachi","Neko-ashi-dachi","Shizentai"];
 
-const COMBO_TOP = [
-  { label: "Eye strike" },{ label: "Groin strike" },{ label: "Throat strike" },
-  { label: "Leg kick" },  { label: "Hikite" },
+// Control concepts — multi-select. The first row is the classical concept
+// categories; "More" reveals the specific actions. This list is easy to reshape
+// later (the values are stored verbatim, so tweaking labels is low-risk).
+const CONCEPT_TOP = [
+  "Atemi (strike)", "Kyusho (pressure point)", "Tuite (joint lock)",
+  "Kuzushi (off-balance)", "Hikite",
 ];
-const COMBO_MORE = [
-  { label: "Temple strike" },{ label: "Rib strike" },{ label: "Knee kick" },
-  { label: "Shin kick" },    { label: "Tuite" },     { label: "Kyusho" },
-  { label: "Hair grab" },    { label: "Head pull" }, { label: "Distraction" },
+const CONCEPT_MORE = [
+  "Eye strike", "Throat strike", "Groin strike", "Temple strike", "Rib strike",
+  "Leg kick", "Knee kick", "Shin kick", "Hair grab", "Head pull", "Distraction",
 ];
 
 const FINISH_TYPES = ["Lock","Throw / Sweep","Strike","Takedown"];
@@ -208,45 +210,43 @@ function CompassRose({ bearing, setBearing, centerLabel = "YOU", title }) {
   );
 }
 
-// ── Combo Builder ────────────────────────────────────────────────────────────
+// ── Concept Picker ───────────────────────────────────────────────────────────
 
-function ComboBuilder({ actions, setActions }) {
+// Multi-select concept tags for the Control step. Tap to toggle; "Other" reveals
+// a free-text field. The messy sequence itself is captured in the description /
+// recording below — these tags are the queryable/filterable summary of it.
+function ConceptPicker({ selected, setSelected, other, setOther }) {
   const [showMore, setShowMore] = useState(false);
-  const opts = showMore ? [...COMBO_TOP, ...COMBO_MORE] : COMBO_TOP;
+  const [showOther, setShowOther] = useState(!!other);
+  const opts = showMore ? [...CONCEPT_TOP, ...CONCEPT_MORE] : CONCEPT_TOP;
+  const toggle = (c) => setSelected(p => p.includes(c) ? p.filter(x => x !== c) : [...p, c]);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {actions.length > 0 && (
-        <Field label="Combination">
-          {actions.map((a, i) => (
-            <div key={i} style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 7, padding: "10px 14px",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.crimsonBright, minWidth: 16 }}>{i + 1}</div>
-                <div style={{ fontSize: 14, color: COLORS.text }}>{a}</div>
-              </div>
-              <div onClick={() => setActions(p => p.filter((_, idx) => idx !== i))}
-                style={{ fontSize: 16, color: COLORS.textMuted, cursor: "pointer", padding: "0 4px" }}>✕</div>
-            </div>
-          ))}
-        </Field>
+    <Field label="Choose concept — tap all that apply">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+        {opts.map(c => (
+          <Chip key={c} label={c} active={selected.includes(c)} onTap={() => toggle(c)} />
+        ))}
+        <div onClick={() => setShowMore(m => !m)} style={{
+          padding: "9px 14px", borderRadius: 7, fontSize: 13, cursor: "pointer",
+          border: `1px solid ${COLORS.border}`, background: COLORS.bg, color: COLORS.textMuted, userSelect: "none",
+        }}>{showMore ? "Less ↑" : "More →"}</div>
+        <Chip label="Other" accent={COLORS.crimsonBright} active={showOther}
+          onTap={() => { const n = !showOther; setShowOther(n); if (!n) setOther(""); }} />
+      </div>
+      {showOther && (
+        <input
+          value={other}
+          onChange={e => setOther(e.target.value)}
+          placeholder="Describe the other concept"
+          style={{
+            marginTop: 4, background: COLORS.bg, border: `1px solid ${COLORS.border}`,
+            borderRadius: 8, fontSize: 15, padding: "12px 14px", width: "100%",
+            color: COLORS.text, boxSizing: "border-box",
+          }}
+        />
       )}
-      {actions.length < 5 && (
-        <Field label="Add action">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-            {opts.map(item => (
-              <Chip key={item.label} label={item.label} active={false} onTap={() => setActions(p => [...p, item.label])} />
-            ))}
-            <div onClick={() => setShowMore(m => !m)} style={{
-              padding: "9px 14px", borderRadius: 7, fontSize: 13, cursor: "pointer",
-              border: `1px solid ${COLORS.border}`, background: COLORS.bg, color: COLORS.textMuted, userSelect: "none",
-            }}>{showMore ? "Less ↑" : "More →"}</div>
-          </div>
-        </Field>
-      )}
-      {actions.length >= 5 && <div style={{ fontSize: 12, color: COLORS.textMuted, textAlign: "center" }}>Max 5 actions</div>}
-    </div>
+    </Field>
   );
 }
 
@@ -392,8 +392,13 @@ export default function BunkaiWizard() {
   const navigate = useNavigate();
   const supabase = useSupabase();
   const { userId } = useAuth();
+  const { bunkaiId } = useParams();
+  const editing = !!bunkaiId;
 
-  const [phase, setPhase] = useState("intro"); // intro | form | review
+  // Editing jumps straight into the stepped form; a new entry starts on the
+  // record-first intro.
+  const [phase, setPhase] = useState(editing ? "form" : "intro"); // intro | form | review
+  const [loading, setLoading] = useState(editing);
   const [transcript, setTranscript] = useState("");
   const [step, setStep] = useState(0);
   const [showVoice, setShowVoice] = useState(false);
@@ -415,8 +420,7 @@ export default function BunkaiWizard() {
 
   // Counter
   const [counterSide,  setCounterSide]  = useState("");
-  const [counterForce, setCounterForce] = useState("");
-  const [counterDir,   setCounterDir]   = useState({ side: "", deg: "" });
+  const [counterDir,   setCounterDir]   = useState("");
   const [counterStance,setCounterStance]= useState("");
 
   // Motion
@@ -426,7 +430,9 @@ export default function BunkaiWizard() {
   const [turnDeg,  setTurnDeg]  = useState("");
 
   // Control
-  const [comboActions,  setComboActions]  = useState([]);
+  const [concepts,      setConcepts]      = useState([]);
+  const [conceptOther,  setConceptOther]  = useState("");
+  const [controlDesc,   setControlDesc]   = useState("");
   const [stanceShift,   setStanceShift]   = useState(false);
   const [controlStance, setControlStance] = useState("");
 
@@ -464,6 +470,51 @@ export default function BunkaiWizard() {
     return () => { active = false; };
   }, [kata, supabase]);
 
+  // Edit mode: load the entry and rehydrate every wizard field from its saved
+  // `payload`. Entries saved before the payload column existed fall back to the
+  // handful of stored columns (the structured steps just start blank).
+  useEffect(() => {
+    if (!editing) return;
+    let active = true;
+    (async () => {
+      const { data } = await supabase.from("bunkai").select("*").eq("id", bunkaiId).single();
+      if (!active) return;
+      const p = data?.payload;
+      if (p && typeof p === "object") {
+        setKata(p.kata ?? data.kata_id ?? "");
+        setKataMove(p.kataMove ?? "");
+        setNumAttacks(p.numAttacks ?? 1);
+        setAttackType(p.attackType ?? "Punch");
+        setAttackSub(p.attackSub ?? "");
+        setAttackExtra(p.attackExtra ?? "");
+        setCounterSide(p.counterSide ?? "");
+        setCounterDir(p.counterDir ?? "");
+        setCounterStance(p.counterStance ?? "");
+        setMoveType(p.moveType ?? "");
+        setBearing(p.bearing ?? null);
+        setTurnDir(p.turnDir ?? "");
+        setTurnDeg(p.turnDeg ?? "");
+        setConcepts(Array.isArray(p.concepts) ? p.concepts : []);
+        setConceptOther(p.conceptOther ?? "");
+        setControlDesc(p.controlDesc ?? "");
+        setStanceShift(!!p.stanceShift);
+        setControlStance(p.controlStance ?? "");
+        setFinishType(p.finishType ?? "");
+        setFinishData(p.finishData ?? {});
+        setCanContinue(p.canContinue ?? "");
+        setTranscript(p.transcript ?? "");
+      } else if (data) {
+        // No structured payload — prefill what the columns can give us.
+        setKata(data.kata_id ?? "");
+        setCounterStance(data.stance ?? "");
+        setFinishType(data.finish ?? "");
+        setControlDesc(data.technique_notes ?? "");
+      }
+      setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [editing, bunkaiId, supabase]);
+
   const kataName    = kataList.find(k => k.id === kata)?.name || "";
   const detail      = ATTACK_DETAILS[attackType];
   const isLast      = step === STEPS.length - 1;
@@ -480,8 +531,8 @@ export default function BunkaiWizard() {
     if (kataName) parts.push(kataMove ? `${kataName} · move ${kataMove}` : kataName);
     parts.push(attackLabel + (detail?.extra ? ` (${attackExtra})` : ""));
     const counter = [
-      counterSide, counterForce,
-      counterDir.side ? ({ F:"Forward", B:"Back", L:"Left", R:"Right" })[counterDir.side] + (counterDir.deg ? ` ${counterDir.deg}°` : "") : "",
+      counterSide,
+      counterDir ? ({ F:"Forward", B:"Back", L:"Left", R:"Right" })[counterDir] : "",
       counterStance ? `land ${counterStance}` : "",
     ].filter(Boolean).join(", ");
     if (counter) parts.push(`Counter: ${counter}`);
@@ -489,7 +540,12 @@ export default function BunkaiWizard() {
     if (moveType === "Turn") motion = turnDir && turnDeg ? `Turn ${turnDeg}° ${turnDir === "L" ? "left" : "right"}` : "Turn";
     else if (moveType) motion = `${moveType}${bearing != null ? " → " + BEARING_LABELS[bearing] : ""}`;
     if (motion) parts.push(`Motion: ${motion}`);
-    const control = [comboActions.join(" → "), stanceShift && controlStance ? `shift to ${controlStance}` : ""].filter(Boolean).join("; ");
+    const conceptList = [...concepts, conceptOther.trim()].filter(Boolean).join(", ");
+    const control = [
+      conceptList,
+      controlDesc.trim(),
+      stanceShift && controlStance ? `shift to ${controlStance}` : "",
+    ].filter(Boolean).join("; ");
     if (control) parts.push(`Control: ${control}`);
     if (finishType) {
       const fd = [finishData.technique, finishData.weapon, finishData.target, finishData.position,
@@ -509,16 +565,31 @@ export default function BunkaiWizard() {
     setPhase("review");
   }
 
+  // The full structured wizard state, stored in the `payload` jsonb column so an
+  // edit can rehydrate every step. Keep in sync with the hydrate effect above.
+  function buildPayload() {
+    return {
+      v: 1,
+      kata, kataMove,
+      numAttacks, attackType, attackSub, attackExtra,
+      counterSide, counterDir, counterStance,
+      moveType, bearing, turnDir, turnDeg,
+      concepts, conceptOther, controlDesc, stanceShift, controlStance,
+      finishType, finishData, canContinue,
+      transcript,
+    };
+  }
+
   async function save() {
     setSaving(true);
     setSaveMsg(null);
-    // Writes the existing bunkai columns plus a readable summary — no schema
-    // change needed. The structured detail is captured in the summary line, and
-    // any spoken transcript is appended so the words are never lost.
+    // Writes the existing bunkai columns plus a readable summary AND the full
+    // structured payload. Any spoken transcript is appended so the words are
+    // never lost.
     const notes = [buildSummary(), transcript ? `Recorded: ${transcript}` : ""]
       .filter(Boolean)
       .join("\n\n");
-    const row = {
+    const base = {
       user_id: userId,
       kata_id: kata || null,
       attack: attackLabel || null,
@@ -527,19 +598,36 @@ export default function BunkaiWizard() {
       finish: finishType || null,
       technique_notes: notes,
     };
-    const { error } = await supabase.from("bunkai").insert(row);
+    const payload = buildPayload();
+
+    // Write with the payload; if that column isn't there yet, retry without it
+    // so saving still works (structured edit just won't round-trip until the
+    // migration is run).
+    const write = (withPayload) => {
+      const row = withPayload ? { ...base, payload } : base;
+      return editing
+        ? supabase.from("bunkai").update(row).eq("id", bunkaiId)
+        : supabase.from("bunkai").insert(row);
+    };
+    let { error } = await write(true);
+    if (error && /payload/i.test(error.message || "")) {
+      ({ error } = await write(false));
+    }
     setSaving(false);
     if (error) {
       // Saving is best-effort — the wizard still worked. Surface, don't block.
       setSaveMsg("Couldn't save (" + error.message + ") — your entry is still on screen.");
       return;
     }
-    navigate("/bunkai");
+    navigate(editing ? `/bunkai/${bunkaiId}` : "/bunkai");
   }
 
   const shell = { background: COLORS.bg, fontFamily: "'Inter', system-ui, sans-serif", color: COLORS.text, display: "flex", justifyContent: "center" };
   const col = { width: "100%", maxWidth: 420, display: "flex", flexDirection: "column" };
   const headerSt = { background: COLORS.bg, borderBottom: `1px solid ${COLORS.border}`, padding: "14px 20px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" };
+
+  // While an edit is loading its saved payload, hold the form back.
+  if (loading) return <div className="spinner" />;
 
   // ── INTRO: record-first ──────────────────────────────────────────────────
   if (phase === "intro") {
@@ -665,13 +753,13 @@ export default function BunkaiWizard() {
           borderBottom: `1px solid ${COLORS.border}`, padding: "14px 20px 12px",
           display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: COLORS.gold }}>Add Bunkai</div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: COLORS.gold }}>{editing ? "Edit Bunkai" : "Add Bunkai"}</div>
             <div style={{ fontSize: 11, color: COLORS.textMuted, letterSpacing: "0.07em", textTransform: "uppercase", marginTop: 2 }}>
               {kataName ? (kataMove ? kataName + " · #" + kataMove : kataName) : "No kata selected"}
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
-            <div onClick={() => navigate("/bunkai")} style={{ fontSize: 18, color: COLORS.textMuted, cursor: "pointer" }}>✕</div>
+            <div onClick={() => navigate(editing ? `/bunkai/${bunkaiId}` : "/bunkai")} style={{ fontSize: 18, color: COLORS.textMuted, cursor: "pointer" }}>✕</div>
             <StepDots current={step} total={STEPS.length} />
           </div>
         </div>
@@ -765,27 +853,17 @@ export default function BunkaiWizard() {
           {/* COUNTER */}
           {step === 2 && (
             <>
-              <div style={{ display: "flex", gap: 10 }}>
-                <Sel label="Side"  options={["Inside","Outside"]} value={counterSide}  onChange={setCounterSide} />
-                <Sel label="Force" options={["Hard","Soft"]}      value={counterForce} onChange={setCounterForce} />
-              </div>
+              <Sel label="Side" options={["Inside","Outside"]} value={counterSide} onChange={setCounterSide} />
               <Field label="Direction">
                 <div style={{ display: "flex", gap: 8 }}>
                   {["F","B","L","R"].map(d => (
-                    <Chip key={d} label={d} active={counterDir.side === d}
-                      onTap={() => setCounterDir(p => ({ ...p, side: d }))} />
+                    <Chip key={d} label={d} active={counterDir === d}
+                      onTap={() => setCounterDir(counterDir === d ? "" : d)} />
                   ))}
                 </div>
-                <select value={counterDir.deg}
-                  onChange={e => setCounterDir(p => ({ ...p, deg: e.target.value }))}
-                  style={{ ...selSt, marginTop: 4, color: counterDir.deg ? COLORS.text : COLORS.textMuted }}>
-                  <option value="">No degree modifier</option>
-                  {[45,90,135,180].map(d => <option key={d} value={d}>{d}°</option>)}
-                </select>
-                {counterDir.side && (
+                {counterDir && (
                   <div style={{ fontSize: 12, color: COLORS.textMuted }}>
-                    {({ F:"Forward", B:"Back", L:"Left", R:"Right" })[counterDir.side]}
-                    {counterDir.deg ? ` ${counterDir.deg}°` : ""}
+                    {({ F:"Forward", B:"Back", L:"Left", R:"Right" })[counterDir]}
                   </div>
                 )}
               </Field>
@@ -836,7 +914,32 @@ export default function BunkaiWizard() {
           {/* CONTROL */}
           {step === 4 && (
             <>
-              <ComboBuilder actions={comboActions} setActions={setComboActions} />
+              <ConceptPicker
+                selected={concepts} setSelected={setConcepts}
+                other={conceptOther} setOther={setConceptOther}
+              />
+
+              <Field label="Describe the control">
+                <textarea
+                  value={controlDesc}
+                  onChange={e => setControlDesc(e.target.value)}
+                  placeholder="e.g. slip outside and strike, kick the back of the knee, then headlock"
+                  rows={3}
+                  style={{
+                    background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 8,
+                    fontSize: 15, padding: "12px 14px", width: "100%", color: COLORS.text,
+                    boxSizing: "border-box", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5,
+                  }}
+                />
+              </Field>
+
+              <VoiceRecorder
+                label="Tap to record this control"
+                onResult={({ transcript: t }) => {
+                  if (t) setControlDesc(p => (p ? `${p} ${t}` : t));
+                }}
+              />
+
               <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 14 }}>
                 <Field label="Stance shift during control?">
                   <div style={{ display: "flex", gap: 8 }}>
@@ -868,24 +971,47 @@ export default function BunkaiWizard() {
           {saveMsg && (
             <div style={{ fontSize: 12, color: COLORS.crimsonBright, lineHeight: 1.5, textAlign: "center" }}>{saveMsg}</div>
           )}
-          {/* "Record instead" hidden until the real voice pipeline is wired in.
-              Planned: a record-first step before Kata — record once with coached
-              prompts, transcribe + auto-fill, then Save or Revise. See
-              VoiceModal below (kept for that rebuild). */}
-          <button onClick={() => isLast ? save() : setStep(s => s + 1)} disabled={saving} style={{
-            background: isLast ? COLORS.green : COLORS.gold, border: "none", borderRadius: 10,
-            padding: "15px", fontSize: 15, fontWeight: 700,
-            color: isLast ? "#fff" : COLORS.bg, cursor: saving ? "default" : "pointer", width: "100%",
-            boxShadow: isLast ? "0 6px 20px rgba(47,123,82,0.35)" : "none",
-            opacity: saving ? 0.7 : 1,
-          }}>
-            {isLast ? (saving ? "Saving…" : "Save Bunkai") : `Next — ${STEPS[step + 1].label}`}
-          </button>
-          {step > 0 && (
-            <div onClick={() => setStep(s => s - 1)}
-              style={{ textAlign: "center", fontSize: 13, color: COLORS.textMuted, cursor: "pointer", padding: "4px", userSelect: "none" }}>
-              ← Back to {STEPS[step - 1].label}
-            </div>
+          {editing ? (
+            // Editing: save is available from any step, and steps can be jumped
+            // freely rather than marched through in order.
+            <>
+              <button onClick={save} disabled={saving} style={{
+                background: COLORS.green, border: "none", borderRadius: 10,
+                padding: "15px", fontSize: 15, fontWeight: 700, color: "#fff",
+                cursor: saving ? "default" : "pointer", width: "100%",
+                boxShadow: "0 6px 20px rgba(47,123,82,0.35)", opacity: saving ? 0.7 : 1,
+              }}>
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: COLORS.textMuted }}>
+                <span onClick={() => step > 0 && setStep(s => s - 1)}
+                  style={{ cursor: step > 0 ? "pointer" : "default", opacity: step > 0 ? 1 : 0.3, padding: "4px", userSelect: "none" }}>
+                  ← {step > 0 ? STEPS[step - 1].label : ""}
+                </span>
+                <span onClick={() => !isLast && setStep(s => s + 1)}
+                  style={{ cursor: !isLast ? "pointer" : "default", opacity: !isLast ? 1 : 0.3, padding: "4px", userSelect: "none" }}>
+                  {!isLast ? STEPS[step + 1].label : ""} →
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <button onClick={() => isLast ? save() : setStep(s => s + 1)} disabled={saving} style={{
+                background: isLast ? COLORS.green : COLORS.gold, border: "none", borderRadius: 10,
+                padding: "15px", fontSize: 15, fontWeight: 700,
+                color: isLast ? "#fff" : COLORS.bg, cursor: saving ? "default" : "pointer", width: "100%",
+                boxShadow: isLast ? "0 6px 20px rgba(47,123,82,0.35)" : "none",
+                opacity: saving ? 0.7 : 1,
+              }}>
+                {isLast ? (saving ? "Saving…" : "Save Bunkai") : `Next — ${STEPS[step + 1].label}`}
+              </button>
+              {step > 0 && (
+                <div onClick={() => setStep(s => s - 1)}
+                  style={{ textAlign: "center", fontSize: 13, color: COLORS.textMuted, cursor: "pointer", padding: "4px", userSelect: "none" }}>
+                  ← Back to {STEPS[step - 1].label}
+                </div>
+              )}
+            </>
           )}
         </div>
 

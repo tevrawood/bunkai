@@ -49,6 +49,7 @@ export default function App() {
             <Route path="/segment/:segmentId/new" element={<BunkaiForm />} />
             <Route path="/bunkai" element={<BunkaiHome />} />
             <Route path="/bunkai/new" element={<BunkaiWizard />} />
+            <Route path="/bunkai/:bunkaiId/edit" element={<BunkaiWizard />} />
             <Route path="/bunkai/:bunkaiId" element={<BunkaiDetail />} />
             <Route path="/notes" element={<Notes />} />
           </Routes>
