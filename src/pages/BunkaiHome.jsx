@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSupabase, isSupabaseConfigured } from '../lib/useSupabase.js'
 import { NONE, labelFor } from '../lib/lexicons.js'
+import { FINISH_TYPES, FINISH_SUBFIELD } from '../lib/finish.js'
 import { buildCsv, downloadCsv } from '../lib/csv.js'
 
 // Prefer a friendly lexicon label, but fall back to the raw stored value so
@@ -56,6 +57,7 @@ export default function BunkaiHome() {
   const [kataFilter, setKataFilter] = useState('all')
   const [attackFilter, setAttackFilter] = useState('all')
   const [finishFilter, setFinishFilter] = useState('all')
+  const [finishSubFilter, setFinishSubFilter] = useState('all')
   const [conceptFilter, setConceptFilter] = useState('all')
   const [query, setQuery] = useState('')
 
@@ -94,11 +96,22 @@ export default function BunkaiHome() {
     return [...set].sort((a, b) => display(a).localeCompare(display(b)))
   }, [rows])
 
+  // Finish options: the canonical wizard types first, then any other finish
+  // value actually present (e.g. older lexicon-coded entries) so nothing a user
+  // has logged is unreachable.
   const finishValues = useMemo(() => {
-    const set = new Set()
-    for (const r of rows) if (r.finish && r.finish !== NONE) set.add(r.finish)
-    return [...set].sort((a, b) => display(a).localeCompare(display(b)))
+    const present = new Set()
+    for (const r of rows) if (r.finish && r.finish !== NONE) present.add(r.finish)
+    const extras = [...present]
+      .filter((v) => !FINISH_TYPES.includes(v))
+      .sort((a, b) => display(a).localeCompare(display(b)))
+    return [...FINISH_TYPES, ...extras]
   }, [rows])
+
+  // Once a finish type with sub-options is chosen, the sub-filter drills into
+  // the specific technique/weapon (stored in payload.finishData).
+  const finishSub = FINISH_SUBFIELD[finishFilter]
+  const finishSubValues = finishSub ? finishSub.options : []
 
   const conceptValues = useMemo(() => {
     const set = new Set()
@@ -122,7 +135,7 @@ export default function BunkaiHome() {
   const q = query.trim().toLowerCase()
   const hasFilters =
     kataFilter !== 'all' || attackFilter !== 'all' || finishFilter !== 'all' ||
-    conceptFilter !== 'all' || q !== ''
+    finishSubFilter !== 'all' || conceptFilter !== 'all' || q !== ''
 
   // Filters combine (AND): each active one narrows the set further.
   const filtered = useMemo(() => {
@@ -130,16 +143,24 @@ export default function BunkaiHome() {
       if (kataFilter !== 'all' && kataOf(r) !== kataFilter) return false
       if (attackFilter !== 'all' && r.attack !== attackFilter) return false
       if (finishFilter !== 'all' && r.finish !== finishFilter) return false
+      if (finishSub && finishSubFilter !== 'all' && r.payload?.finishData?.[finishSub.key] !== finishSubFilter) return false
       if (conceptFilter !== 'all' && !conceptsOf(r).includes(conceptFilter)) return false
       if (q && !haystack(r).includes(q)) return false
       return true
     })
-  }, [rows, kataFilter, attackFilter, finishFilter, conceptFilter, q])
+  }, [rows, kataFilter, attackFilter, finishFilter, finishSub, finishSubFilter, conceptFilter, q])
+
+  // Changing the finish type resets the (now-irrelevant) sub-filter.
+  function pickFinish(v) {
+    setFinishFilter(v)
+    setFinishSubFilter('all')
+  }
 
   function clearFilters() {
     setKataFilter('all')
     setAttackFilter('all')
     setFinishFilter('all')
+    setFinishSubFilter('all')
     setConceptFilter('all')
     setQuery('')
   }
@@ -206,7 +227,7 @@ export default function BunkaiHome() {
         <select
           className="select"
           value={finishFilter}
-          onChange={(e) => setFinishFilter(e.target.value)}
+          onChange={(e) => pickFinish(e.target.value)}
         >
           <option value="all">All finishes</option>
           {finishValues.map((v) => (
@@ -215,6 +236,20 @@ export default function BunkaiHome() {
             </option>
           ))}
         </select>
+        {finishSub && (
+          <select
+            className="select"
+            value={finishSubFilter}
+            onChange={(e) => setFinishSubFilter(e.target.value)}
+          >
+            <option value="all">Any {finishSub.label.toLowerCase()}</option>
+            {finishSubValues.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        )}
         <select
           className="select"
           value={conceptFilter}

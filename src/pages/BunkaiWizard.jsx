@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@clerk/clerk-react";
 import { useSupabase } from "../lib/useSupabase.js";
 import { CURRICULUM } from "../lib/curriculum.js";
+import { FINISH_TYPES, FINISH_OPTIONS } from "../lib/finish.js";
 import VoiceRecorder from "../components/VoiceRecorder.jsx";
 
 // New stepped Bunkai capture wizard (Kata → Attack → Counter → Motion →
@@ -43,15 +44,6 @@ const CONCEPT_MORE = [
   "Eye strike", "Throat strike", "Groin strike", "Temple strike", "Rib strike",
   "Leg kick", "Knee kick", "Shin kick", "Hair grab", "Head pull", "Distraction",
 ];
-
-const FINISH_TYPES = ["Lock","Throw / Sweep","Strike","Takedown"];
-
-const FINISH_OPTIONS = {
-  Lock:           { techniques: ["Figure four","Wrist lock","Arm bar","Shoulder lock","Neck crank","Other"], positions: ["Standing","Kneeling","Grounded","Wall"] },
-  "Throw / Sweep":{ techniques: ["Hip throw","Leg sweep","Shoulder throw","Foot sweep","Other"] },
-  Strike:         { weapons: ["Seiken","Shuto","Hiji (elbow)","Knee","Head butt","Other"], targets: ["Temple","Throat","Back of head","Spine","Groin","Ribs","Other"] },
-  Takedown:       { techniques: ["Double leg","Single leg","Body lock","Trips","Other"], positions: ["Face down","Face up","Side","Seated"] },
-};
 
 const CAN_CONTINUE = ["No — they're done","Unlikely","Possibly — disengage now"];
 
