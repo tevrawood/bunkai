@@ -1,91 +1,142 @@
 // Serverless Claude proxy (Vercel Edge). Takes a raw spoken bunkai transcript
-// and returns it parsed into the app's form fields, using ONLY the short
-// lexicon codes so the values drop straight into the dropdowns. The Anthropic
-// key is a server-side env var and never reaches the client. Mirrors
-// api/transcribe.js. Keep the schema in sync with src/lib/lexicons.js — it is
-// imported from there so the allowed values can never drift.
+// and returns it parsed into the capture wizard's structured fields, using ONLY
+// the exact option strings the wizard uses so values drop straight into the
+// steps. The Anthropic key is a server-side env var and never reaches the
+// client. Keep the vocabulary in sync with src/lib/wizardOptions.js +
+// src/lib/finish.js — imported from there so allowed values can never drift.
 import {
-  ATTACKS, SIDES, STANCES, FINISH,
-  MOVE_SIDES, DEFENSE, LEVELS, HIKITE_ACTIONS, TUITE, KYUSHO, NONE,
-} from '../src/lib/lexicons.js'
+  ATTACK_TYPES, ATTACK_DETAILS, STANCES,
+  CONCEPT_TOP, CONCEPT_MORE, CAN_CONTINUE, BEARINGS,
+} from '../src/lib/wizardOptions.js'
+import { FINISH_TYPES, FINISH_OPTIONS } from '../src/lib/finish.js'
 
 export const config = { runtime: 'edge' }
 
-// Cheap + fast field parser. Bump to claude-sonnet-4-6 / claude-opus-4-8 if
+// Cheap + fast field parser. Bump to claude-sonnet-5 / claude-opus-4-8 if
 // accuracy on tricky transcripts isn't enough.
 const MODEL = 'claude-haiku-4-5'
 
-// Strip the NONE sentinel — "not mentioned" is expressed as null, not '—'.
-const codes = (lex) => lex.map((o) => o.value).filter((v) => v !== NONE)
+const CONCEPTS = [...CONCEPT_TOP, ...CONCEPT_MORE]
+const BEARING_DEGS = BEARINGS.map((b) => b.deg)
 
-// A field that is either one of the lexicon's codes or null (not stated).
-// anyOf is explicitly supported by strict structured outputs.
-const nullableEnum = (lex) => ({ anyOf: [{ type: 'string', enum: codes(lex) }, { type: 'null' }] })
+// Nullable field helpers for strict structured outputs — "not stated" is null,
+// never a guess. anyOf is explicitly supported by strict tool schemas.
+const nullableEnum = (values) => ({ anyOf: [{ type: 'string', enum: values }, { type: 'null' }] })
+const nullableStr = { anyOf: [{ type: 'string' }, { type: 'null' }] }
+const nullableIntEnum = (values) => ({ anyOf: [{ type: 'integer', enum: values }, { type: 'null' }] })
 
-const MOVE = {
+// Finish specifics. Which keys apply depends on finishType (see FINISH_OPTIONS);
+// the client vets each value against the chosen type, so a flat all-nullable
+// object is enough here.
+const FINISH_DATA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    side: nullableEnum(MOVE_SIDES),
-    technique: nullableEnum(DEFENSE),
-    level: nullableEnum(LEVELS),
-    hikite_action: nullableEnum(HIKITE_ACTIONS),
-    hikite_target: nullableEnum(KYUSHO),
-    tuite: nullableEnum(TUITE),
-    kyusho: nullableEnum(KYUSHO),
+    technique:   nullableStr,
+    position:    nullableStr,
+    weapon:      nullableStr,
+    target:      nullableStr,
+    fallBearing: nullableIntEnum(BEARING_DEGS),
   },
-  required: ['side', 'technique', 'level', 'hikite_action', 'hikite_target', 'tuite', 'kyusho'],
+  required: ['technique', 'position', 'weapon', 'target', 'fallBearing'],
 }
 
+// Mirrors the wizard's payload (buildPayload in BunkaiWizard). Kata is a DB uuid
+// the model can't know — the user sets it in the UI — so it's deliberately left
+// out of the parse.
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    attack: nullableEnum(ATTACKS),
-    attack_side: nullableEnum(SIDES),
-    stance: nullableEnum(STANCES),
-    finish: nullableEnum(FINISH),
-    kiai: { type: 'boolean' },
-    moves: { type: 'array', items: MOVE },
-    technique_notes: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    numAttacks:    nullableIntEnum([1, 2, 3]),
+    attackType:    nullableEnum(ATTACK_TYPES),
+    attackSub:     nullableStr,
+    attackExtra:   nullableStr,
+    counterSide:   nullableEnum(['Inside', 'Outside']),
+    counterDir:    nullableEnum(['F', 'B', 'L', 'R']),
+    counterStance: nullableEnum(STANCES),
+    moveType:      nullableEnum(['Slide', 'Step', 'Turn']),
+    bearing:       nullableIntEnum(BEARING_DEGS),
+    turnDir:       nullableEnum(['L', 'R']),
+    turnDeg:       nullableEnum(['90', '180', '270']),
+    concepts:      { type: 'array', items: { type: 'string', enum: CONCEPTS } },
+    conceptOther:  nullableStr,
+    controlDesc:   nullableStr,
+    stanceShift:   { type: 'boolean' },
+    controlStance: nullableEnum(STANCES),
+    finishType:    nullableEnum(FINISH_TYPES),
+    finishData:    FINISH_DATA,
+    canContinue:   nullableEnum(CAN_CONTINUE),
   },
-  required: ['attack', 'attack_side', 'stance', 'finish', 'kiai', 'moves', 'technique_notes'],
+  required: [
+    'numAttacks', 'attackType', 'attackSub', 'attackExtra',
+    'counterSide', 'counterDir', 'counterStance',
+    'moveType', 'bearing', 'turnDir', 'turnDeg',
+    'concepts', 'conceptOther', 'controlDesc', 'stanceShift', 'controlStance',
+    'finishType', 'finishData', 'canContinue',
+  ],
 }
 
-// Code → meaning reference, built from the lexicons so the model knows what each
-// short code means (it only sees the bare codes in the schema otherwise). Keeps
-// the glossary in sync with the dropdowns automatically.
-const glossary = (label, lex) =>
-  `${label}: ${lex.filter((o) => o.value !== NONE).map((o) => `${o.value} = ${o.label}`).join('; ')}`
+// Human-readable option references, built from the same lists so the model knows
+// exactly which strings are valid without them drifting from the dropdowns.
+const attackRef = ATTACK_TYPES.map((t) => {
+  const d = ATTACK_DETAILS[t]
+  const extra = d.extra ? `; ${d.extra.label}: ${d.extra.options.join('/')}` : ''
+  return `${t} (subtype: ${d.subtypes.join('/')}${extra})`
+}).join('\n  ')
 
-const REFERENCE = [
-  glossary('Attacks', ATTACKS),
-  glossary("Attacker's side", SIDES),
-  glossary('Stances', STANCES),
-  glossary('Move techniques (blocks/strikes/locks)', DEFENSE),
-  glossary('Levels', LEVELS),
-  glossary('Hikite actions', HIKITE_ACTIONS),
-  glossary('Tuite (joint locks)', TUITE),
-  glossary('Kyusho (pressure points)', KYUSHO),
-  glossary('Finishes', FINISH),
-].join('\n')
+const finishRef = FINISH_TYPES.map((t) => {
+  const o = FINISH_OPTIONS[t] || {}
+  const parts = []
+  if (o.techniques) parts.push(`technique: ${o.techniques.join('/')}`)
+  if (o.weapons) parts.push(`weapon: ${o.weapons.join('/')}`)
+  if (o.targets) parts.push(`target: ${o.targets.join('/')}`)
+  if (o.positions) parts.push(`position: ${o.positions.join('/')}`)
+  return `${t} (${parts.join('; ')})`
+}).join('\n  ')
 
 const SYSTEM =
   "You parse a karate practitioner's spoken description of a bunkai (a practical " +
-  'self-defense application of a kata) into structured fields by calling the ' +
-  'record_bunkai tool exactly once.\n\n' +
+  'self-defense application of a kata) into the capture wizard\'s structured ' +
+  'fields by calling the record_bunkai tool exactly once.\n\n' +
+  'A bunkai flows: ATTACK (what the opponent does) -> COUNTER (the first ' +
+  'defensive motion) -> MOTION (how the defender moves or turns) -> CONTROL (the ' +
+  'combination that neutralizes the opponent) -> FINISH (how it ends).\n\n' +
+  'Fill only what the speaker actually says. Use null for anything not stated — ' +
+  'do NOT guess. Map each spoken term to the CLOSEST allowed option below; never ' +
+  'invent values.\n\n' +
+  'ATTACK\n' +
+  '- numAttacks: how many attacks (1-3).\n' +
+  '- attackType + attackSub + attackExtra — allowed combinations:\n  ' + attackRef + '\n' +
+  '  attackSub and attackExtra must belong to the chosen attackType. attackExtra ' +
+  'is the hand/leg/location detail; null if not stated.\n\n' +
+  'COUNTER\n' +
+  '- counterSide: Inside or Outside (which side of the attacking limb).\n' +
+  '- counterDir: F/B/L/R — the direction the defender moves to counter.\n' +
+  '- counterStance: the stance the defender lands in — one of: ' + STANCES.join(', ') + '.\n\n' +
+  'MOTION\n' +
+  '- moveType: Slide, Step, or Turn.\n' +
+  '- For Slide/Step, set bearing to the compass degrees travelled (0=forward, ' +
+  '45=forward-right, 90=right, 135=back-right, 180=back, 225=back-left, ' +
+  '270=left, 315=forward-left); leave turnDir/turnDeg null.\n' +
+  '- For Turn, set turnDir (L/R) and turnDeg (90/180/270); leave bearing null.\n\n' +
+  'CONTROL\n' +
+  '- concepts: every tag that applies (multi-select): ' + CONCEPTS.join(', ') + '.\n' +
+  '- conceptOther: a concept that matches none of those tags, else null.\n' +
+  '- controlDesc: a short plain-language description of the control combination.\n' +
+  '- stanceShift: true only if they mention shifting stance during the control.\n' +
+  '- controlStance: the stance shifted to (one of the stances above), else null.\n\n' +
+  'FINISH\n' +
+  '- finishType: one of ' + FINISH_TYPES.join(', ') + '.\n' +
+  '- finishData fields depend on finishType — allowed values:\n  ' + finishRef + '\n' +
+  '  Use fallBearing (compass degrees, same scale as bearing) for the direction ' +
+  'the opponent falls/goes on Throw / Sweep and Takedown; null otherwise.\n' +
+  '- canContinue: one of ' + CAN_CONTINUE.join(' | ') + '.\n\n' +
   'The speaker uses Okinawan/Japanese terms in romaji, often run together or ' +
-  'loosely spelled — e.g. "nekoashidachi" and "neko ashi dachi" both mean the ' +
-  'Neko stance; "gyaku zuki" = GyzZuki; "shuto uke" = ShutoUk. Common suffixes: ' +
-  '-dachi/-tachi = stance, -zuki/-tsuki = punch/thrust, -uke = block/receive, ' +
-  '-geri = kick, -uchi/-ate = strike, -barai = sweep/parry. Map each spoken ' +
-  'term to the CLOSEST code in the reference below. Never invent codes and never ' +
-  'output full Japanese names — only the codes.\n\n' +
-  'CODE REFERENCE (code = meaning):\n' + REFERENCE + '\n\n' +
-  'Rules: if something is not clearly stated, use null — do not guess. Map the ' +
-  "defender's techniques to the moves array in the order performed (at most " +
-  'three). hikite_target and kyusho both use the pressure-point codes. Put any ' +
-  'extra detail, correction, or context with no matching field into technique_notes.'
+  'loosely spelled — e.g. "nekoashidachi" = Neko-ashi-dachi; "gyaku zuki" = a ' +
+  'Reverse punch; "mawashi geri" = a Round kick; "shiko dachi" = Shiko-dachi. ' +
+  'Suffixes: -dachi/-tachi = stance, -zuki/-tsuki = punch/thrust, -geri = kick, ' +
+  '-uke = block/receive, -uchi/-ate = strike, -barai = sweep/parry.'
 
 export default async function handler(req) {
   if (req.method !== 'POST') return json({ error: { message: 'Method not allowed' } }, 405)
@@ -116,7 +167,7 @@ export default async function handler(req) {
       tools: [
         {
           name: 'record_bunkai',
-          description: 'Record the parsed bunkai fields.',
+          description: 'Record the parsed bunkai fields for the capture wizard.',
           input_schema: SCHEMA,
           strict: true,
         },
