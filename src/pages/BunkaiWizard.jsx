@@ -4,6 +4,11 @@ import { useAuth } from "@clerk/clerk-react";
 import { useSupabase } from "../lib/useSupabase.js";
 import { CURRICULUM } from "../lib/curriculum.js";
 import { FINISH_TYPES, FINISH_OPTIONS } from "../lib/finish.js";
+import { parseBunkai } from "../lib/voice.js";
+import {
+  ATTACK_TYPES, ATTACK_DETAILS, STANCES,
+  CONCEPT_TOP, CONCEPT_MORE, CAN_CONTINUE, BEARINGS, BEARING_LABELS,
+} from "../lib/wizardOptions.js";
 import VoiceRecorder from "../components/VoiceRecorder.jsx";
 
 // New stepped Bunkai capture wizard (Kata → Attack → Counter → Motion →
@@ -21,31 +26,9 @@ const COLORS = {
   text: "#E8E8E8", textMuted: "#8892A4",
 };
 
-const ATTACK_TYPES = ["Punch", "Kick", "Wrist", "Grab", "Choke", "Push"];
-const ATTACK_DETAILS = {
-  Punch: { subtypes: ["Reverse","Jab","Hook"],                          extra: { label: "Hand",          options: ["Right","Left"] } },
-  Kick:  { subtypes: ["Front","Round","Side"],                          extra: { label: "Leg",           options: ["Right","Left"] } },
-  Wrist: { subtypes: ["Cross","Single","Double"],                       extra: { label: "Wrist grabbed", options: ["Right","Left"] } },
-  Grab:  { subtypes: ["Single","Double"],                               extra: { label: "Location",      options: ["Collar","Shoulder","Sleeve"] } },
-  Choke: { subtypes: ["2-hand front","1-hand front","Rear naked","Headlock"], extra: null },
-  Push:  { subtypes: ["1-hand","2-hand"],                               extra: { label: "Hand",          options: ["Right","Left"] } },
-};
-
-const STANCES = ["Shiko-dachi","Naihanchi-dachi","Zenkutsu-dachi","Neko-ashi-dachi","Shizentai"];
-
-// Control concepts — multi-select. The first row is the classical concept
-// categories; "More" reveals the specific actions. This list is easy to reshape
-// later (the values are stored verbatim, so tweaking labels is low-risk).
-const CONCEPT_TOP = [
-  "Atemi (strike)", "Kyusho (pressure point)", "Tuite (joint lock)",
-  "Kuzushi (off-balance)", "Hikite",
-];
-const CONCEPT_MORE = [
-  "Eye strike", "Throat strike", "Groin strike", "Temple strike", "Rib strike",
-  "Leg kick", "Knee kick", "Shin kick", "Hair grab", "Head pull", "Distraction",
-];
-
-const CAN_CONTINUE = ["No — they're done","Unlikely","Possibly — disengage now"];
+// Wizard vocabulary (ATTACK_TYPES, ATTACK_DETAILS, STANCES, CONCEPT_TOP/MORE,
+// CAN_CONTINUE, BEARINGS, BEARING_LABELS) lives in lib/wizardOptions.js so the
+// voice parser (api/parse.js) shares one source of truth.
 
 const VOICE_PROMPTS = [
   "Name the attack. Describe your counter — inside or outside, hard or soft. What stance did you land in?",
@@ -70,23 +53,6 @@ const STEPS = [
   { key: "control", label: "Control" },
   { key: "finish",  label: "Finish"  },
 ];
-
-const BEARINGS = [
-  { label: "Fwd",  deg: 0,   row: 0, col: 1 },
-  { label: "FR",   deg: 45,  row: 0, col: 2 },
-  { label: "R",    deg: 90,  row: 1, col: 2 },
-  { label: "BR",   deg: 135, row: 2, col: 2 },
-  { label: "Back", deg: 180, row: 2, col: 1 },
-  { label: "BL",   deg: 225, row: 2, col: 0 },
-  { label: "L",    deg: 270, row: 1, col: 0 },
-  { label: "FL",   deg: 315, row: 0, col: 0 },
-];
-
-const BEARING_LABELS = {
-  0:"Straight forward", 45:"Forward right 45°", 90:"Straight right",
-  135:"Back right 45°", 180:"Straight back",    225:"Back left 45°",
-  270:"Straight left",  315:"Forward left 45°",
-};
 
 // ── Shared UI ────────────────────────────────────────────────────────────────
 
@@ -392,6 +358,8 @@ export default function BunkaiWizard() {
   const [phase, setPhase] = useState(editing ? "form" : "intro"); // intro | form | review
   const [loading, setLoading] = useState(editing);
   const [transcript, setTranscript] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [parsed, setParsed]   = useState(false);
   const [step, setStep] = useState(0);
   const [showVoice, setShowVoice] = useState(false);
   const [pace, setPace] = useState("normal");
@@ -548,13 +516,81 @@ export default function BunkaiWizard() {
     return parts.join(". ");
   }
 
-  // Voice: capture the spoken transcript and move to the review screen. Parsing
-  // into the individual fields is a later upgrade — for now the words are kept
-  // as a note so nothing is lost.
-  function onVoice({ transcript: t }) {
+  // Apply Claude's parsed fields to the wizard state, vetting every value against
+  // the allowed set first so a stray model output can never land an invalid value
+  // in a step. Anything not recognized is simply skipped (left at its default).
+  function applyParsed(f) {
+    if (!f || typeof f !== "object") return;
+    const inList = (v, list) => typeof v === "string" && Array.isArray(list) && list.includes(v);
+
+    if ([1, 2, 3].includes(f.numAttacks)) setNumAttacks(f.numAttacks);
+
+    if (inList(f.attackType, ATTACK_TYPES)) {
+      const d = ATTACK_DETAILS[f.attackType];
+      setAttackType(f.attackType);
+      setAttackSub(inList(f.attackSub, d.subtypes) ? f.attackSub : "");
+      setAttackExtra(d.extra && inList(f.attackExtra, d.extra.options) ? f.attackExtra : "");
+    }
+
+    if (inList(f.counterSide, ["Inside", "Outside"])) setCounterSide(f.counterSide);
+    if (inList(f.counterDir, ["F", "B", "L", "R"])) setCounterDir(f.counterDir);
+    if (inList(f.counterStance, STANCES)) setCounterStance(f.counterStance);
+
+    if (inList(f.moveType, ["Slide", "Step", "Turn"])) {
+      setMoveType(f.moveType);
+      if (f.moveType === "Turn") {
+        if (inList(f.turnDir, ["L", "R"])) setTurnDir(f.turnDir);
+        if (inList(f.turnDeg, ["90", "180", "270"])) setTurnDeg(f.turnDeg);
+      } else if (BEARINGS.some((b) => b.deg === f.bearing)) {
+        setBearing(f.bearing);
+      }
+    }
+
+    if (Array.isArray(f.concepts)) {
+      const valid = f.concepts.filter((c) => CONCEPT_TOP.includes(c) || CONCEPT_MORE.includes(c));
+      if (valid.length) setConcepts(valid);
+    }
+    if (typeof f.conceptOther === "string" && f.conceptOther.trim()) setConceptOther(f.conceptOther.trim());
+    if (typeof f.controlDesc === "string" && f.controlDesc.trim()) setControlDesc(f.controlDesc.trim());
+    if (f.stanceShift === true && inList(f.controlStance, STANCES)) {
+      setStanceShift(true);
+      setControlStance(f.controlStance);
+    }
+
+    if (inList(f.finishType, FINISH_TYPES)) {
+      const opts = FINISH_OPTIONS[f.finishType] || {};
+      const d = f.finishData || {};
+      const fd = {};
+      if (inList(d.technique, opts.techniques)) fd.technique = d.technique;
+      if (inList(d.weapon, opts.weapons)) fd.weapon = d.weapon;
+      if (inList(d.target, opts.targets)) fd.target = d.target;
+      if (inList(d.position, opts.positions)) fd.position = d.position;
+      if (BEARINGS.some((b) => b.deg === d.fallBearing)) fd.fallBearing = d.fallBearing;
+      setFinishType(f.finishType);
+      setFinishData(fd);
+    }
+    if (inList(f.canContinue, CAN_CONTINUE)) setCanContinue(f.canContinue);
+  }
+
+  // Voice: capture the spoken transcript, move to the review screen, and parse it
+  // into the wizard fields in the background. Parsing is best-effort — it only
+  // runs on the deployed /api route — so the transcript is always kept as a note
+  // regardless, and a parse failure just leaves the fields blank for manual edit.
+  async function onVoice({ transcript: t }) {
     if (!t) return; // transcription failed — VoiceRecorder shows its own error
     setTranscript(t);
+    setParsed(false);
     setPhase("review");
+    setParsing(true);
+    try {
+      const fields = await parseBunkai(t);
+      applyParsed(fields);
+      setParsed(!!fields);
+    } catch {
+      /* keep the transcript; the user can still fill the fields via Revise */
+    } finally {
+      setParsing(false);
+    }
   }
 
   // The full structured wizard state, stored in the `payload` jsonb column so an
@@ -696,7 +732,11 @@ export default function BunkaiWizard() {
             <div>
               <div style={{ fontSize: 26, fontWeight: 800, color: COLORS.text, lineHeight: 1 }}>Here's what you recorded</div>
               <div style={{ fontSize: 13, color: COLORS.textMuted, marginTop: 5, lineHeight: 1.5 }}>
-                Save it as a note now, or revise to fill in the structured fields.
+                {parsing
+                  ? "Reading your description and filling in the fields…"
+                  : parsed
+                    ? "We pre-filled the wizard from your recording. Save now, or revise to check and correct the fields."
+                    : "Save it as a note now, or revise to fill in the structured fields."}
               </div>
             </div>
 
